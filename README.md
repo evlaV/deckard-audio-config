@@ -1,4 +1,4 @@
-# deckard-sound-config
+# deckard-audio-config
 
 Straight import of files from perforce.
 
