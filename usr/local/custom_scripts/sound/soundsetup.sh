@@ -45,7 +45,7 @@ else
    export SOUNDCARD=$SOUNDCARDSTR
 fi
 
-EEPROM_CONSOLE=/usr/local/bin/eeprom_console
+EEPROM_CONSOLE=/usr/libexec/eeprom_console
 
 rm -f /etc/pipewire/pipewire.conf.d/microphone-filter-chain*
 ln -s "/etc/pipewire/microphone-filter-chain/microphone-filter-chain-default.conf" /etc/pipewire/pipewire.conf.d/microphone-filter-chain.conf
