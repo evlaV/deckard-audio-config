@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
 
-export HOME=/data/home/steamvr
-export USER=steamvr
-export XDG_RUNTIME_DIR=/run/user/1000
-export PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
-export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR
-export PIPEWIRE_RUNTIME_DIR=$XDG_RUNTIME_DIR
-
 # Take a string node description and return the corresponding wpctl ID.
 wpctl_id() {
     local node_desc="$1"

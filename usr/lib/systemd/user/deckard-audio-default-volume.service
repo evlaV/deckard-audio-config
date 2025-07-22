@@ -1,0 +1,9 @@
+[Unit]
+Description=Default Volume Service
+After=wireplumber.service
+
+[Service]
+ExecStart=/usr/share/deckard-audio-config/default_volume.sh
+
+[Install]
+WantedBy=default.target

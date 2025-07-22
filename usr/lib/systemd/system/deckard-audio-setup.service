@@ -1,0 +1,9 @@
+[Unit]
+Description=Audio Setup service
+After=local-fs.target
+
+[Service]
+ExecStart=/usr/share/deckard-audio-config/soundsetup.sh
+
+[Install]
+WantedBy=default.target
