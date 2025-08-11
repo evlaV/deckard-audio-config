@@ -95,9 +95,8 @@ if [ $module_ret_code -eq 0 ]; then
     fi
   elif [[ "${module_vendor,,}" == "ggec" ]] ; then
     # XXX: if strap_revision is needed, it is Bev1 for Boulder
-    dsm_bin="dsm_param_ggec_preEV1poc.bin"
-    # Digital 130 = alsamixer slider 34 = -15dB
-    Digital=130
+    dsm_bin="dsm_param_ggec_preEV1poc_ThOff.bin"
+    Digital=112
   else
     echo "[audiosetup] unsupported module vendor"
     error_exit
