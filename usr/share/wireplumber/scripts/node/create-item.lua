@@ -110,7 +110,7 @@ function getSpatializerArgs(node)
                     "{ " ..
                         "type = ladspa " ..
                         "name = filter " ..
-                        "plugin = /usr/local/steamvr/bin/linuxarm64/vraudiocompositor.so " ..
+                        "plugin = /opt/steamvr/bin/linuxarm64/vraudiocompositor.so " ..
                         "label = spatialize_stereo " ..
                         "control = { " ..
                             "\"PID\" = " .. tostring(pid) .. " " ..
