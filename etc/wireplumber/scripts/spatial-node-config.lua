@@ -106,6 +106,7 @@ end
 
 SimpleEventHook {
   name = "spatial-node/create-item",
+  before = "node/create-item",
   interests = {
     EventInterest {
       Constraint { "event.type", "=", "node-added" },
