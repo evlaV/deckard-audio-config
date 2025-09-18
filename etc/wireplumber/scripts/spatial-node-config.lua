@@ -73,16 +73,13 @@ function getSpatializerArgs(node)
                 "audio.channels = 2 " ..
                 "audio.position = [ FL FR ] " ..
                 "spatialize.node = " .. tostring(node.id) .. " " ..
-                "filter.smart = true " ..
-                "filter.smart.name = filter-chain-spatialize " ..
-                "filter.smart.target = { media.class = Audio/Sink, alsa.card_name = \"SM8250 LPASS\", device.profile.description = \"Speaker playback\" } " ..
-                "filter.smart.before = [ filter-chain-sink ] " ..
             "} " ..
             "playback.props = { " ..
                 "node.name = \"" .. node.properties["node.name"] .. ".spatialize_filter_chain.playback\" " ..
                 "node.passive = true " ..
                 "audio.channels = 2 " ..
                 "audio.position = [ FL FR ] " ..
+                "target.object = \"filter-chain-sink\"" ..
             "} " ..
         "}"
 
@@ -131,6 +128,10 @@ SimpleEventHook {
      -- if we should spatialize this node, create the filter chain
      if shouldSpatialize(node) then
          addSpatializedItem(node, id)
+         local extra_si_properties = {
+           ["target.object"] = node.properties["node.name"] .. ".spatialize_filter_chain.capture"
+         }
+         event:set_data ("extra-si-properties", extra_si_properties)
      end
    end
 }:register ()
