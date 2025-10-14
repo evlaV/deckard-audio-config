@@ -79,7 +79,6 @@ function getSpatializerArgs(node)
                 "node.passive = true " ..
                 "audio.channels = 2 " ..
                 "audio.position = [ FL FR ] " ..
-                "target.object = \"filter-chain-sink\"" ..
             "} " ..
         "}"
 
