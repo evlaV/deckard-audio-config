@@ -46,7 +46,7 @@ SimpleEventHook {
 	 EventInterest {
 		Constraint { "event.type", "=", "node-added" },
 		Constraint { "media.class", "=", "Stream/Input/Audio" },
-		Constraint { "media.category", "=", "Capture" }
+		Constraint { "node.virtual", "!", "true" }
 	 }
   },
   execute = function(event)
@@ -64,7 +64,7 @@ SimpleEventHook {
 	 EventInterest {
 		Constraint { "event.type", "=", "node-removed" },
 		Constraint { "media.class", "=", "Stream/Input/Audio" },
-		Constraint { "media.category", "=", "Capture" }
+		Constraint { "node.virtual", "!", "true" }
 	 }
   },
   execute = function(event)
