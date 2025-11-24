@@ -7,13 +7,13 @@ do
     sleep 2
 done
 
-if [[ ! -f "home/steamvr/.local/state/wireplumber/default_volume" ]]; then
+if [[ ! -f "home/steamos/.local/state/wireplumber/default_volume" ]]; then
     echo "Setting default volumes and writing sentinel file."
     wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.60 || true
     wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 1.0 || true
-    date > /home/steamvr/.local/state/wireplumber/default_volume
+    date > /home/steamos/.local/state/wireplumber/default_volume
 else
-    echo "Found sentinel file at /home/steamvr/.local/state/wireplumber/default_volume. Not modifying default volumes."
+    echo "Found sentinel file at /home/steamos/.local/state/wireplumber/default_volume. Not modifying default volumes."
 fi
 
 # Always run the pipewire graph at 10ms quant
