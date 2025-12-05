@@ -1,5 +1,7 @@
 log = Log.open_topic ("s-node")
 
+steamaudioloadermodule = LocalModule("vraudioloadermodule", "vraudio.samplerate=48000", nil)
+
 spatializers = {}
 
 -- returns true if we should spatialize the node
