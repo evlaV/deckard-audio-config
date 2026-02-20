@@ -52,7 +52,7 @@ ln -s "/etc/pipewire/microphone-filter-chain/microphone-filter-chain-default.con
 ln -s "/etc/pipewire/microphone-filter-chain/microphone-filter-chain-echo-cancel.conf" /etc/pipewire/pipewire.conf.d/microphone-filter-chain-echo-cancel.conf
 rm -f /etc/pipewire/pipewire.conf.d/filter-chain*
 # XXX: choose filter chain based on strap_revision (Denver vs. Boulder)
-# filter chain is in etc/wireplumber/30-speaker-filter-graph-ev1.conf
+ln -s "/etc/pipewire/filter-chains/filter-chain-ev1.conf" /etc/pipewire/pipewire.conf.d/filter-chain.conf
 
 strap_revision=$( $EEPROM_CONSOLE get strap_revision 2>/dev/null )
 if [ $? -ne 0 ] ; then
