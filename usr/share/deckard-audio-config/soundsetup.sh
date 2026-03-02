@@ -75,9 +75,8 @@ if [ $module_ret_code -eq 0 ]; then
   echo "[audiosetup] audio_module_vendor is $module_vendor"
   if [[ "$module_vendor" == "Forgrand" ]]; then
     if [ "$strap_revision" == "mp" ] || [ "$strap_revision" == "dv2" ] || [ "$strap_revision" == "dv1" ] || [ "$strap_revision" == "ev3" ] || ([ "$strap_revision" == "ev2" ] && [ "$strap_minor" -gt 0 ]) ; then
-      dsm_bin="dsm_param_FG_comp.bin"
-      # Digital 130 = alsamixer slider 34 = -15dB
-      Digital=130
+      dsm_bin="dsm_param_FG_2018b.bin"
+      Digital=127
     else
       dsm_bin="dsm_param_fg8k50p.bin"
       # Digital 134 = alsamixer slider 36 = -13dB
@@ -85,9 +84,8 @@ if [ $module_ret_code -eq 0 ]; then
     fi
   elif [[ "$module_vendor" == "Olewolff" ]]; then
     if [ "$strap_revision" == "mp" ] || [ "$strap_revision" == "dv2" ] || [ "$strap_revision" == "dv1" ] || [ "$strap_revision" == "ev3" ] || ([ "$strap_revision" == "ev2" ] && [ "$strap_minor" -gt 0 ]) ; then
-      dsm_bin="dsm_param_OW_comp.bin"
-      # Digital 132 alsamixer slider 35 = -14dB
-      Digital=132
+      dsm_bin="dsm_param_OW_2018b.bin"
+      Digital=127
     else
       dsm_bin="dsm_param_ow8k50p.bin"
       # Digital 130 = alsamixer slider 34 = -15dB
