@@ -47,13 +47,6 @@ fi
 
 EEPROM_CONSOLE=/usr/lib/deckard-eeprom/eeprom_console
 
-rm -f /etc/pipewire/pipewire.conf.d/microphone-filter-chain*
-ln -s "/etc/pipewire/microphone-filter-chain/microphone-filter-chain-default.conf" /etc/pipewire/pipewire.conf.d/microphone-filter-chain.conf
-ln -s "/etc/pipewire/microphone-filter-chain/microphone-filter-chain-echo-cancel.conf" /etc/pipewire/pipewire.conf.d/microphone-filter-chain-echo-cancel.conf
-rm -f /etc/pipewire/pipewire.conf.d/filter-chain*
-# XXX: choose filter chain based on strap_revision (Denver vs. Boulder)
-ln -s "/etc/pipewire/filter-chains/filter-chain-ev1.conf" /etc/pipewire/pipewire.conf.d/filter-chain.conf
-
 strap_revision=$( $EEPROM_CONSOLE get strap_revision 2>/dev/null )
 if [ $? -ne 0 ] ; then
   echo "[audiosetup] strap_revision not set in eeprom"
@@ -65,6 +58,20 @@ if [ $? -ne 0 ] ; then
   strap_minor=0
 fi
 echo "[audiosetup] strap_revision: $strap_revision strap_minor: $strap_minor"
+
+# Link filter chain files
+rm -f /etc/pipewire/pipewire.conf.d/microphone-filter-chain*
+ln -s "/etc/pipewire/microphone-filter-chain/microphone-filter-chain-default.conf" /etc/pipewire/pipewire.conf.d/microphone-filter-chain.conf
+ln -s "/etc/pipewire/microphone-filter-chain/microphone-filter-chain-echo-cancel.conf" /etc/pipewire/pipewire.conf.d/microphone-filter-chain-echo-cancel.conf
+rm -f /etc/pipewire/pipewire.conf.d/filter-chain*
+# Choose filter chain based on strap_revision (Denver vs. Boulder)
+if [[ "$strap_revision" == "bEV2" ]] ; then
+  echo "[audiosetup] linking Boulder filter chain"
+  ln -s "/etc/pipewire/filter-chains/filter-chain-boulder.conf" /etc/pipewire/pipewire.conf.d/filter-chain.conf
+else
+  echo "[audiosetup] linking Denver filter chain"
+  ln -s "/etc/pipewire/filter-chains/filter-chain-denver.conf" /etc/pipewire/pipewire.conf.d/filter-chain.conf
+fi
 
 # Read audio vendor from EEPROM to determine DSM param bin file to load to amps
 dsm_bin=""
@@ -92,7 +99,6 @@ if [ $module_ret_code -eq 0 ]; then
       Digital=130
     fi
   elif [[ "${module_vendor,,}" == "ggec" ]] ; then
-    # XXX: if strap_revision is needed, it is Bev1 for Boulder
     dsm_bin="dsm_param_ggec_preEV1poc_ThOff.bin"
     Digital=112
   else
