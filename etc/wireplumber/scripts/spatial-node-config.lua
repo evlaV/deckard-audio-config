@@ -37,17 +37,67 @@ function canSpatialize(numChannels)
     end
 end
 
+-- builds the string that contains the ladspa plugin name to use for a given channel count
+function getLADSPAPluginName(numChannels)
+    if numChannels == 2 then
+        return "spatialize_stereo"
+    elseif numChannels == 6 then
+        return "spatialize_51"
+    elseif numChannels == 8 then
+        return "spatialize_71"
+    else
+        return ""
+    end
+end
+
+-- builds the string that describes the ladspa plugin input ports for a given channel count
+function getFilterNodeInputs(numChannels)
+    if numChannels == 2 then
+        return "[ \"filter:In_FL\" \"filter:In_FR\" ]"
+    elseif numChannels == 6 then
+        return "[ \"filter:In_FL\" \"filter:In_FR\" \"filter:In_FC\" \"filter:In_LFE\" \"filter:In_RL\" \"filter:In_RR\" ]"
+    elseif numChannels == 8 then
+        return "[ \"filter:In_FL\" \"filter:In_FR\" \"filter:In_FC\" \"filter:In_LFE\" \"filter:In_RL\" \"filter:In_RR\" \"filter:In_SL\" \"filter:In_SR\" ]"
+    else
+        return ""
+    end
+end
+
+-- builds the string that describes the input channel map for a given channel count
+function getChannelPositions(numChannels)
+    if numChannels == 2 then
+        return "[ FL FR ]"
+    elseif numChannels == 6 then
+        return "[ FL FR FC LFE RL RR ]"
+    elseif numChannels == 8 then
+        return "[ FL FR FC LFE RL RR SL SR ]"
+    else
+        return ""
+    end
+end
+
 -- builds the string that should be set as the "args" parameter when instantiating the spatializer filter
 -- chain for the given node
 function getSpatializerArgs(node)
     local args
     local pid
+    local numChannels
 
     -- figure out the pid from the node's properties
     pid = 0
     if node.properties["application.process.id"] ~= nil then
         pid = tonumber(node.properties["application.process.id"])
         -- log:warning(pid .. " : " .. tostring(node.properties["application.process.binary"]) .. " : " .. tostring(node.properties["application.name"]))
+    end
+
+    -- todo: what is the "correct" way to get at the channel format requested by the stream?
+    numChannels = 2
+    for pod in node:iterate_params("EnumFormat") do
+        local pod_parsed = pod:parse()
+        if pod_parsed ~= nil then
+            numChannels = tonumber(pod_parsed.properties.channels)
+            break
+        end
     end
 
     args =
@@ -60,20 +110,20 @@ function getSpatializerArgs(node)
                         "type = ladspa " ..
                         "name = filter " ..
                         "plugin = /opt/steamvr/bin/linuxarm64/vraudiocompositor.so " ..
-                        "label = spatialize_stereo " ..
+                        "label = " .. getLADSPAPluginName(numChannels) .. " " ..
                         "control = { " ..
                             "\"PID\" = " .. tostring(pid) .. " " ..
                         "} " ..
                     "} " ..
                 "] " ..
-                "inputs = [ \"filter:In_FL\" \"filter:In_FR\" ] " ..
+                "inputs = " .. getFilterNodeInputs(numChannels) .. " " ..
                 "outputs = [ \"filter:Out_FL\" \"filter:Out_FR\" ] " ..
             "} " ..
             "capture.props = { " ..
                 "node.name = \"" .. node.properties["node.name"] .. ".spatialize_filter_chain.capture\" " ..
                 "media.class = Audio/Sink " ..
-                "audio.channels = 2 " ..
-                "audio.position = [ FL FR ] " ..
+                "audio.channels = " .. numChannels .. " " ..
+                "audio.position = " .. getChannelPositions(numChannels) .. " " ..
                 "spatialize.node = " .. tostring(node.id) .. " " ..
             "} " ..
             "playback.props = { " ..
