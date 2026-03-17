@@ -4,6 +4,9 @@ steamaudioloadermodule = LocalModule("vraudioloadermodule", "vraudio.samplerate=
 
 spatializers = {}
 
+loopbackStereo = nil
+loopback71 = nil
+
 -- returns true if we should spatialize the node
 function shouldSpatialize(node)
     -- only spatialize if the relevant wireplumber setting is enabled
@@ -19,6 +22,10 @@ function shouldSpatialize(node)
         elseif string.find(node.properties["node.name"], "virtual") and string.find(node.properties["node.name"], "sink") then
             return false
         elseif string.find(node.properties["node.name"], ".spatialize_filter_chain") then
+            return false
+        elseif string.find(node.properties["node.name"], "loopback") and string.find(node.properties["node.name"], "stereo") and string.find(node.properties["node.name"], "sink") then
+            return false
+        elseif string.find(node.properties["node.name"], "loopback") and string.find(node.properties["node.name"], "71") and string.find(node.properties["node.name"], "sink") then
             return false
         else
             return true
@@ -212,3 +219,106 @@ SimpleEventHook {
     end
   end
 }:register ()
+
+function getLoopbackStereoArgs(device_id, cpd)
+    args =
+        "{ " ..
+            "node.name = \"Built-in Audio (Stereo)\" " ..
+            "capture.props = { " ..
+                "node.name = \"Built-in Audio (Stereo)\" " ..
+                "media.class = Audio/Sink " ..
+                "audio.channels = 2 " ..
+                "audio.position = [ FL FR ] " ..
+                "priority.session = 1000 " ..
+                "alsa.loopback = true " ..
+                "device.id = " .. device_id .. " " ..
+                "card.profile.device = " .. cpd .. " " ..
+            "} " ..
+            "playback.props = { " ..
+                "node.name = \"loopback-stereo-sink-playback\" " ..
+                "node.passive = true " ..
+                "audio.channels = 2 " ..
+                "audio.position = [ FL FR ] " ..
+                "node.target = \"filter-chain-sink\" " ..
+                "alsa.loopback = true " ..
+            "} " ..
+        "}"
+
+    return args
+end
+
+function getLoopback71Args(device_id, cpd)
+    args =
+        "{ " ..
+            "node.name = \"Built-in Audio (7.1)\" " ..
+            "capture.props = { " ..
+                "node.name = \"Built-in Audio (7.1)\" " ..
+                "device.description = \"Built-in Audio (7.1)\" " ..
+                "media.class = Audio/Sink " ..
+                "audio.channels = 8 " ..
+                "audio.position = [ FL FR FC LFE RL RR SL SR ] " ..
+                "priority.session = 1000 " ..
+                "alsa.loopback = true " ..
+                "device.id = " .. device_id .. " " ..
+                "card.profile.device = " .. cpd .. " " ..
+            "} " ..
+            "playback.props = { " ..
+                "node.name = \"loopback-71-sink-playback\" " ..
+                "node.passive = true " ..
+                "audio.channels = 2 " ..
+                "audio.position = [ FL FR ] " ..
+                "node.target = \"filter-chain-sink\" " ..
+                "alsa.loopback = true " ..
+            "} " ..
+        "}"
+
+    return args
+end
+
+SimpleEventHook {
+    name = "spatial-node/setup-71-loopback",
+    interests = {
+        EventInterest {
+            Constraint { "event.type", "=", "rescan-for-default-nodes" }
+        },
+        EventInterest {
+            Constraint { "event.type", "=", "metadata-changed" },
+            Constraint { "metadata.name", "=", "sm-settings" },
+            Constraint { "event.subject.key", "=", "node.stream.spatial-audio-surround" }
+        }
+    },
+    execute = function (event)
+        local source = event:get_source()
+        local metadata_om = source:call("get-object-manager", "metadata")
+        local settings = metadata_om:lookup{ Constraint{ "metadata.name", "=", "sm-settings" } }
+
+        -- find the actual built-in audio node, and get its device.id
+        local node_om = source:call("get-object-manager", "node")
+        local node = node_om:lookup{ Constraint{ "node.name", "=", "alsa_output.platform-sound.HiFi__Speaker__sink" } }
+        if not node then
+            return
+        end
+
+        device_id = node.properties["device.id"]
+        card_profile_device = node.properties["card.profile.device"]
+        if not device_id or not card_profile_device then
+            return
+        end
+
+        if settings:find(0, "node.stream.spatial-audio-surround") == "true" then
+            if loopbackStereo then
+                loopbackStereo = nil
+            end
+            if not loopback71 then
+                loopback71 = LocalModule("libpipewire-module-loopback", getLoopback71Args(device_id, card_profile_device))
+            end
+        else
+            if loopback71 then
+                loopback71 = nil
+            end
+            if not loopbackStereo then
+                loopbackStereo = LocalModule("libpipewire-module-loopback", getLoopbackStereoArgs(device_id, card_profile_device))
+            end
+        end
+    end
+}:register()
