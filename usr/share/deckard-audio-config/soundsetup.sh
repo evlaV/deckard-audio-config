@@ -65,7 +65,7 @@ ln -s "/etc/pipewire/microphone-filter-chain/microphone-filter-chain-default.con
 ln -s "/etc/pipewire/microphone-filter-chain/microphone-filter-chain-echo-cancel.conf" /etc/pipewire/pipewire.conf.d/microphone-filter-chain-echo-cancel.conf
 rm -f /etc/pipewire/pipewire.conf.d/filter-chain*
 # Choose filter chain based on strap_revision (Denver vs. Boulder)
-if [[ "$strap_revision" == "bEV2" ]] ; then
+if [[ "$strap_revision" == "bEV2" ]] || [[ "$strap_revision" == "Bdv" ]]; then
   echo "[audiosetup] linking Boulder filter chain"
   ln -s "/etc/pipewire/filter-chains/filter-chain-boulder.conf" /etc/pipewire/pipewire.conf.d/filter-chain.conf
 else
