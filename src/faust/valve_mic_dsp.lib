@@ -1,0 +1,40 @@
+declare name "Valve DSP";
+declare description "Generic microphone tuning.";
+declare version "0.1";
+
+import("stdfaust.lib");
+import("basics.lib");
+import("compressors.lib");
+import("filters.lib");
+import("analyzers.lib");
+import("reverbs.lib");
+import("routes.lib");
+
+peak(LP,FP,Q) = _ : fi.peak_eq(LP,FP,BP) : _
+with {
+    BP= FP/Q;
+};
+
+// 5 band EQ.
+eq(i, LP0, FP0, Q0, LP1, FP1, Q1, LP2, FP2, Q2, LP3, FP3, Q3, LP4, FP4, Q4) =
+    _ :
+    fi.peak_eq_cq(LP0, FP0, Q0) :
+    fi.peak_eq_cq(LP1, FP1, Q1) :
+    fi.peak_eq_cq(LP2, FP2, Q2) :
+    fi.peak_eq_cq(LP3, FP3, Q3) :
+    fi.peak_eq_cq(LP4, FP4, Q4) :
+    _ ;
+
+
+silence = _ * 0.0;
+
+
+mic_tuning(IN_GAIN_DB, HP_FREQ, LP_FREQ, LP0, FP0, Q0, LP1, FP1, Q1, LP2, FP2, Q2, LP3, FP3, Q3, LP4, FP4, Q4, COMP_STRENGTH, COMP_THRESHOLD, COMP_ATTACK, COMP_RELEASE, COMP_KNEE) =
+    _ : fi.highpass(2, HP_FREQ) : fi.lowpass(2,LP_FREQ) : peak(LP0, FP0, Q0) : peak(LP1, FP1, Q1) : peak(LP2, FP2, Q2) : peak(LP3, FP3, Q3) : peak(LP4, FP4, Q4) :
+        _ * ba.db2linear(IN_GAIN_DB) :
+        co.FFcompressor_N_chan(COMP_STRENGTH, COMP_THRESHOLD, COMP_ATTACK, COMP_RELEASE, COMP_KNEE, 1, 1, meter, 1) :
+        _
+with
+{
+    meter = _;
+};
