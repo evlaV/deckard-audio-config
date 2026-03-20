@@ -57,19 +57,6 @@ function getLADSPAPluginName(numChannels)
     end
 end
 
--- builds the string that describes the ladspa plugin input ports for a given channel count
-function getFilterNodeInputs(numChannels)
-    if numChannels == 2 then
-        return "[ \"filter:In_FL\" \"filter:In_FR\" ]"
-    elseif numChannels == 6 then
-        return "[ \"filter:In_FL\" \"filter:In_FR\" \"filter:In_FC\" \"filter:In_LFE\" \"filter:In_RL\" \"filter:In_RR\" ]"
-    elseif numChannels == 8 then
-        return "[ \"filter:In_FL\" \"filter:In_FR\" \"filter:In_FC\" \"filter:In_LFE\" \"filter:In_RL\" \"filter:In_RR\" \"filter:In_SL\" \"filter:In_SR\" ]"
-    else
-        return ""
-    end
-end
-
 -- builds the string that describes the input channel map for a given channel count
 function getChannelPositions(numChannels)
     if numChannels == 2 then
@@ -107,41 +94,165 @@ function getSpatializerArgs(node)
         end
     end
 
-    args =
-        "{ " ..
-            "node.description = \"" .. node.properties["node.name"] .. ".spatialize_filter_chain\" " ..
-            "media.name = \"" .. node.properties["node.name"] .. ".spatialize_filter_chain\" " ..
-            "filter.graph = { " ..
-                "nodes = [ " ..
-                    "{ " ..
-                        "type = ladspa " ..
-                        "name = filter " ..
-                        "plugin = /opt/steamvr/bin/linuxarm64/vraudiocompositor.so " ..
-                        "label = " .. getLADSPAPluginName(numChannels) .. " " ..
-                        "control = { " ..
-                            "\"PID\" = " .. tostring(pid) .. " " ..
-                        "} " ..
-                    "} " ..
-                "] " ..
-                "inputs = " .. getFilterNodeInputs(numChannels) .. " " ..
-                "outputs = [ \"filter:Out_FL\" \"filter:Out_FR\" ] " ..
-            "} " ..
-            "capture.props = { " ..
-                "node.name = \"" .. node.properties["node.name"] .. ".spatialize_filter_chain.capture\" " ..
-                "media.class = Audio/Sink " ..
-                "audio.channels = " .. numChannels .. " " ..
-                "audio.position = " .. getChannelPositions(numChannels) .. " " ..
-                "spatialize.node = " .. tostring(node.id) .. " " ..
-            "} " ..
-            "playback.props = { " ..
-                "node.name = \"" .. node.properties["node.name"] .. ".spatialize_filter_chain.playback\" " ..
-                "node.passive = true " ..
-                "audio.channels = 2 " ..
-                "audio.position = [ FL FR ] " ..
-            "} " ..
-        "}"
+    local cutoff_frequency = 80
+    local q = 0.707
 
-    return args
+    local nodes = Json.Array{}
+
+    if numChannels == 6 or numChannels == 8 then
+        nodes = nodes:merge(Json.Array{
+            Json.Object{ type = "builtin", name = "copy_fl", label = "copy" },
+            Json.Object{ type = "builtin", name = "copy_fr", label = "copy" },
+            Json.Object{ type = "builtin", name = "copy_fc", label = "copy" },
+            Json.Object{ type = "builtin", name = "copy_lfe", label = "copy" },
+            Json.Object{ type = "builtin", name = "copy_rl", label = "copy" },
+            Json.Object{ type = "builtin", name = "copy_rr", label = "copy" }
+        })
+        if numChannels == 8 then
+            nodes = nodes:merge(Json.Array{
+                Json.Object{ type = "builtin", name = "copy_sl", label = "copy" },
+                Json.Object{ type = "builtin", name = "copy_sr", label = "copy" }
+            })
+        end
+
+        nodes = nodes:merge(Json.Array{
+            Json.Object{
+                type = "builtin",
+                name = "lowpass",
+                label = "param_eq",
+                config = Json.Object{
+                    filters = Json.Array{
+                        Json.Object{ type = "bq_lowpass", freq = cutoff_frequency, q = q },
+                        Json.Object{ type = "bq_lowpass", freq = cutoff_frequency, q = q }
+                    }
+                }
+            },
+            Json.Object{
+                type = "builtin",
+                name = "highpass",
+                label = "param_eq",
+                config = Json.Object{
+                    filters = Json.Array{
+                        Json.Object{ type = "bq_highpass", freq = cutoff_frequency, q = q },
+                        Json.Object{ type = "bq_highpass", freq = cutoff_frequency, q = q }
+                    }
+                }
+            },
+            Json.Object{ type = "builtin", name = "mixer_lfe", label = "mixer" },
+            Json.Object{ type = "builtin", name = "mixer_fl", label = "mixer" },
+            Json.Object{ type = "builtin", name = "mixer_fr", label = "mixer" }
+        })
+    end
+
+    nodes = nodes:merge(Json.Array{Json.Object{
+        type = "ladspa",
+        name = "spatialize",
+        plugin = "/opt/steamvr/bin/linuxarm64/vraudiocompositor.so",
+        label = getLADSPAPluginName(numChannels),
+        control = Json.Object{
+            ["PID"] = pid
+        }
+    }})
+
+    local links = Json.Array{}
+
+    if numChannels == 6 or numChannels == 8 then
+        links = links:merge(Json.Array{
+            Json.Object{ output = "copy_fl:Out", input = "lowpass:In 1" },
+            Json.Object{ output = "copy_fr:Out", input = "lowpass:In 2" },
+            Json.Object{ output = "copy_fc:Out", input = "lowpass:In 3" },
+            Json.Object{ output = "copy_lfe:Out", input = "lowpass:In 4" },
+            Json.Object{ output = "copy_rl:Out", input = "lowpass:In 5" },
+            Json.Object{ output = "copy_rr:Out", input = "lowpass:In 6" },
+
+            Json.Object{ output = "copy_fl:Out", input = "highpass:In 1" },
+            Json.Object{ output = "copy_fr:Out", input = "highpass:In 2" },
+            Json.Object{ output = "copy_fc:Out", input = "highpass:In 3" },
+            Json.Object{ output = "copy_lfe:Out", input = "highpass:In 4" },
+            Json.Object{ output = "copy_rl:Out", input = "highpass:In 5" },
+            Json.Object{ output = "copy_rr:Out", input = "highpass:In 6" },
+
+            Json.Object{ output = "lowpass:Out 1", input = "mixer_lfe:In 1" },
+            Json.Object{ output = "lowpass:Out 2", input = "mixer_lfe:In 2" },
+            Json.Object{ output = "lowpass:Out 3", input = "mixer_lfe:In 3" },
+            Json.Object{ output = "lowpass:Out 4", input = "mixer_lfe:In 4" },
+            Json.Object{ output = "lowpass:Out 5", input = "mixer_lfe:In 5" },
+            Json.Object{ output = "lowpass:Out 6", input = "mixer_lfe:In 6" },
+
+            Json.Object{ output = "highpass:Out 1", input = "mixer_fl:In 1" },
+            Json.Object{ output = "highpass:Out 4", input = "mixer_fl:In 2" },
+
+            Json.Object{ output = "highpass:Out 2", input = "mixer_fr:In 1" },
+            Json.Object{ output = "highpass:Out 4", input = "mixer_fr:In 2" },
+
+            Json.Object{ output = "mixer_fl:Out", input = "spatialize:In_FL" },
+            Json.Object{ output = "mixer_fr:Out", input = "spatialize:In_FR" },
+            Json.Object{ output = "highpass:Out 3", input = "spatialize:In_FC" },
+            Json.Object{ output = "mixer_lfe:Out", input = "spatialize:In_LFE" },
+            Json.Object{ output = "highpass:Out 5", input = "spatialize:In_RL" },
+            Json.Object{ output = "highpass:Out 6", input = "spatialize:In_RR" }
+        })
+        if numChannels == 8 then
+            links = links:merge(Json.Array{
+                Json.Object{ output = "copy_sl:Out", input = "lowpass:In 7" },
+                Json.Object{ output = "copy_sr:Out", input = "lowpass:In 8" },
+
+                Json.Object{ output = "copy_sl:Out", input = "highpass:In 7" },
+                Json.Object{ output = "copy_sr:Out", input = "highpass:In 8" },
+
+                Json.Object{ output = "lowpass:Out 7", input = "mixer_lfe:In 7" },
+                Json.Object{ output = "lowpass:Out 8", input = "mixer_lfe:In 8" },
+
+                Json.Object{ output = "highpass:Out 7", input = "spatialize:In_SL" },
+                Json.Object{ output = "highpass:Out 8", input = "spatialize:In_SR" }
+            })
+        end
+    end
+
+    local inputs = {}
+
+    if numChannels == 6 or numChannels == 8 then
+        inputs = Json.Array{ "copy_fl:In", "copy_fr:In", "copy_fc:In", "copy_lfe:In", "copy_rl:In", "copy_rr:In" }
+        if numChannels == 8 then
+            inputs = inputs:merge(Json.Array{"copy_sl:In", "copy_sr:In"})
+        end
+    else
+        inputs = Json.Array{ "spatialize:In_FL", "spatialize:In_FR" }
+    end
+
+    local captureAudioPosition = Json.Array{"FL", "FR"}
+    if numChannels == 6 or numChannels == 8 then
+        captureAudioPosition = captureAudioPosition:merge(Json.Array{"FC", "LFE", "RL", "RR"})
+        if numChannels == 8 then
+            captureAudioPosition = captureAudioPosition:merge(Json.Array{"SL", "SR"})
+        end
+    end
+
+    local args = {
+        ["node.description"] = node.properties["node.name"] .. ".spatialize_filter_chain",
+        ["media.name"] = node.properties["node.name"] .. ".spatialize_filter_chain",
+        ["filter.graph"] = Json.Object{
+            ["nodes"] = nodes,
+            ["links"] = links,
+            ["inputs"] = inputs,
+            ["outputs"] = Json.Array{ "spatialize:Out_FL", "spatialize:Out_FR" }
+        },
+        ["capture.props"] = Json.Object{
+            ["node.name"] = node.properties["node.name"] .. ".spatialize_filter_chain.capture",
+            ["media.class"] = "Audio/Sink",
+            ["audio.channels"] = numChannels,
+            ["audio.position"] = captureAudioPosition,
+            ["spatialize.node"] = node.id
+        },
+        ["playback.props"] = Json.Object{
+            ["node.name"] = node.properties["node.name"] .. ".spatialize_filter_chain.playback",
+            ["node.passive"] = true,
+            ["audio.channels"] = 2,
+            ["audio.position"] = Json.Array{"FL", "FR"}
+        }
+    }
+
+    return Json.Object(args):get_data()
 end
 
 
