@@ -23,9 +23,7 @@ function shouldSpatialize(node)
             return false
         elseif string.find(node.properties["node.name"], ".spatialize_filter_chain") then
             return false
-        elseif string.find(node.properties["node.name"], "loopback") and string.find(node.properties["node.name"], "stereo") and string.find(node.properties["node.name"], "sink") then
-            return false
-        elseif string.find(node.properties["node.name"], "loopback") and string.find(node.properties["node.name"], "71") and string.find(node.properties["node.name"], "sink") then
+        elseif string.find(node.properties["node.name"], "^alsa_loopback_") then
             return false
         else
             return true
@@ -334,9 +332,9 @@ SimpleEventHook {
 function getLoopbackStereoArgs(device_id, cpd)
     args =
         "{ " ..
-            "node.name = \"Built-in Audio (Stereo)\" " ..
+            "node.name = alsa_loopback_stereo " ..
             "capture.props = { " ..
-                "node.name = \"Built-in Audio (Stereo)\" " ..
+                "node.name = alsa_loopback_stereo.capture " ..
                 "media.class = Audio/Sink " ..
                 "audio.channels = 2 " ..
                 "audio.position = [ FL FR ] " ..
@@ -346,7 +344,7 @@ function getLoopbackStereoArgs(device_id, cpd)
                 "card.profile.device = " .. cpd .. " " ..
             "} " ..
             "playback.props = { " ..
-                "node.name = \"loopback-stereo-sink-playback\" " ..
+                "node.name = alsa_loopback_stereo.playback " ..
                 "node.passive = true " ..
                 "audio.channels = 2 " ..
                 "audio.position = [ FL FR ] " ..
@@ -361,10 +359,9 @@ end
 function getLoopback71Args(device_id, cpd)
     args =
         "{ " ..
-            "node.name = \"Built-in Audio (7.1)\" " ..
+            "node.name = alsa_loopback_71 " ..
             "capture.props = { " ..
-                "node.name = \"Built-in Audio (7.1)\" " ..
-                "device.description = \"Built-in Audio (7.1)\" " ..
+                "node.name = alsa_loopback_71.capture " ..
                 "media.class = Audio/Sink " ..
                 "audio.channels = 8 " ..
                 "audio.position = [ FL FR FC LFE RL RR SL SR ] " ..
@@ -374,7 +371,7 @@ function getLoopback71Args(device_id, cpd)
                 "card.profile.device = " .. cpd .. " " ..
             "} " ..
             "playback.props = { " ..
-                "node.name = \"loopback-71-sink-playback\" " ..
+                "node.name = alsa_loopback_71.playback " ..
                 "node.passive = true " ..
                 "audio.channels = 2 " ..
                 "audio.position = [ FL FR ] " ..
@@ -384,6 +381,75 @@ function getLoopback71Args(device_id, cpd)
         "}"
 
     return args
+end
+
+function createLoopback(node, isSurround)
+    local name = node.properties ["node.name"]
+    local desc = node.properties ["node.description"]
+    local device_media_class = node.properties ["media.class"]
+    local dev_id = node.properties ["device.id"]
+    local channels = node.properties ["audio.channels"]
+    local position = node.properties ["audio.position"]
+    local pri_driver = node.properties ["priority.driver"]
+    local pri_session = node.properties ["priority.session"]
+    local cpd = node.properties ["card.profile.device"]
+    local stream_media_class = "Stream/Output/Audio"
+    local stream_props = nil
+    local device_props = nil
+    local args = nil
+
+    local prefixed_name = string.format("stereo.%s", name)
+    if isSurround then
+        prefixed_name = string.format("71.%s", name)
+    end
+
+    local device_audio_channels = 2
+    if isSurround then
+        device_audio_channels = 8
+    end
+
+    local device_audio_position = "[FL FR]"
+    if isSurround then
+        device_audio_position = "[FL FR FC LFE RL RR SL SR]"
+    end
+
+    -- Set stream props
+    stream_props = Json.Object {
+      ["node.name"] = string.format ("alsa_loopback_stream.%s", prefixed_name),
+      ["node.description"] =
+          string.format ("ALSA internal stream for %s", desc),
+      ["media.class"] = stream_media_class,
+      ["audio.channels"] = channels,
+      ["audio.position"] = position,
+      ["alsa.loopback"] = true,
+      ["stream.dont-remix"] = true,
+      ["node.passive"] = true,
+      ["node.dont-fallback"] = true,
+      ["node.linger"] = true,
+      ["target.object"] = name
+    }
+
+    -- Set device props
+    device_props = Json.Object {
+      ["node.name"] = string.format ("alsa_loopback_device.%s", prefixed_name),
+      ["node.description"] = desc,
+      ["media.class"] = device_media_class,
+      ["audio.channels"] = device_audio_channels,
+      ["audio.position"] = device_audio_position,
+      ["alsa.loopback"] = true,
+      ["device.id"] = dev_id,
+      ["card.profile.device"] = cpd,
+      ["priority.driver"] = tonumber(pri_driver) + 1,
+      ["priority.session"] = tonumber(pri_session) + 1
+    }
+
+    args = Json.Object {
+      ["playback.props"] = stream_props,
+      ["capture.props"] = device_props
+    }
+
+    -- Load loopback
+    return LocalModule("libpipewire-module-loopback", args:get_data(), {})
 end
 
 SimpleEventHook {
@@ -410,25 +476,19 @@ SimpleEventHook {
             return
         end
 
-        device_id = node.properties["device.id"]
-        card_profile_device = node.properties["card.profile.device"]
-        if not device_id or not card_profile_device then
-            return
-        end
-
         if settings:find(0, "node.stream.spatial-audio-surround") == "true" then
             if loopbackStereo then
                 loopbackStereo = nil
             end
             if not loopback71 then
-                loopback71 = LocalModule("libpipewire-module-loopback", getLoopback71Args(device_id, card_profile_device))
+                loopback71 = createLoopback(node, true)
             end
         else
             if loopback71 then
                 loopback71 = nil
             end
             if not loopbackStereo then
-                loopbackStereo = LocalModule("libpipewire-module-loopback", getLoopbackStereoArgs(device_id, card_profile_device))
+                loopbackStereo = createLoopback(node, false)
             end
         end
     end
