@@ -145,7 +145,7 @@ function getSpatializerArgs(node)
     nodes = nodes:merge(Json.Array{Json.Object{
         type = "ladspa",
         name = "spatialize",
-        plugin = "/opt/steamvr/bin/linuxarm64/vraudiocompositor.so",
+        plugin = "/usr/lib/ladpsa/vraudiocompositor.so",
         label = getLADSPAPluginName(numChannels),
         control = Json.Object{
             ["PID"] = pid
