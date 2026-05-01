@@ -20,7 +20,7 @@ function isDefaultSinkBuiltIn(event)
     local json = Json.Raw(obj)
     local default_sink_name = json:parse().name
 
-    if default_sink_name == "alsa_output.platform-sound.HiFi__Speaker__sink" then
+    if string.find(default_sink_name, "alsa_output.platform-sound.HiFi__Speaker__sink", 1, true) ~= nil then
         return true
     else
         return false
