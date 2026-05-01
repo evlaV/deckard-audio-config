@@ -7,6 +7,26 @@ spatializers = {}
 loopbackStereo = nil
 loopback71 = nil
 
+-- returns true if the current default sink is the built-in speakers
+function isDefaultSinkBuiltIn(event)
+    local source = event:get_source()
+    local metadata_om = source:call("get-object-manager", "metadata")
+    local defaults = metadata_om:lookup{ Constraint{ "metadata.name", "=", "default" } }
+    local obj = defaults:find(0, "default.audio.sink")
+    if not obj then
+        return false
+    end
+
+    local json = Json.Raw(obj)
+    local default_sink_name = json:parse().name
+
+    if default_sink_name == "alsa_output.platform-sound.HiFi__Speaker__sink" then
+        return true
+    else
+        return false
+    end
+end
+
 -- returns true if we should spatialize the node
 function shouldSpatialize(node)
     -- only spatialize if the relevant wireplumber setting is enabled
@@ -294,7 +314,7 @@ SimpleEventHook {
      local id = node.id
 
      -- if we should spatialize this node, create the filter chain
-     if shouldSpatialize(node) then
+     if isDefaultSinkBuiltIn(event) and shouldSpatialize(node) then
          addSpatializedItem(node, id)
          local extra_si_properties = {
            ["target.object"] = node.properties["node.name"] .. ".spatialize_filter_chain.capture"
