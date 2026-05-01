@@ -55,7 +55,7 @@ end
 
 -- returns true if we currently support spatializing audio streams with the given number of channels
 function canSpatialize(numChannels)
-    if numChannels == 1 or numChannels == 2 or numChannels == 6 or numChannels == 8 then
+    if numChannels == 1 or numChannels == 2 or numChannels == 4 or numChannels == 6 or numChannels == 8 then
         return true
     else
         return false
@@ -66,6 +66,8 @@ end
 function getLADSPAPluginName(numChannels)
     if numChannels == 2 then
         return "spatialize_stereo"
+    elseif numChannels == 4 then
+        return "spatialize_quad"
     elseif numChannels == 6 then
         return "spatialize_51"
     elseif numChannels == 8 then
@@ -79,6 +81,8 @@ end
 function getChannelPositions(numChannels)
     if numChannels == 2 then
         return "[ FL FR ]"
+    elseif numChannels == 4 then
+        return "[ FL FR RL RR ]"
     elseif numChannels == 6 then
         return "[ FL FR FC LFE RL RR ]"
     elseif numChannels == 8 then
@@ -236,6 +240,9 @@ function getSpatializerArgs(node)
         end
     else
         inputs = Json.Array{ "spatialize:In_FL", "spatialize:In_FR" }
+        if numChannels == 4 then
+            inputs = inputs:merge(Json.Array{"spatialize:In_RL", "spatialize:In_RR"})
+        end
     end
 
     local captureAudioPosition = Json.Array{"FL", "FR"}
@@ -244,6 +251,8 @@ function getSpatializerArgs(node)
         if numChannels == 8 then
             captureAudioPosition = captureAudioPosition:merge(Json.Array{"SL", "SR"})
         end
+    elseif numChannels == 4 then
+        captureAudioPosition = captureAudioPosition:merge(Json.Array{"RL", "RR"})
     end
 
     local args = {
