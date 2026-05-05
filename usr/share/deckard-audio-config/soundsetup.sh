@@ -178,5 +178,3 @@ amixer -c$SOUNDCARD sset 'Speaker Right DSM Rdc' $admittance
 amixer -c$SOUNDCARD sset 'Speaker Right Digital' $Digital
 
 # Remaining mixer settings are sent by UCM. See /usr/share/alsa/ucm2/codecs/sm8250-lpass/
-
-runuser -u steamos -- /bin/bash $SCRIPT_PATH/default_sound_settings.sh
