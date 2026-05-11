@@ -326,7 +326,9 @@ SimpleEventHook {
      if isDefaultSinkBuiltIn(event) and shouldSpatialize(node) then
          addSpatializedItem(node, id)
          local extra_si_properties = {
-           ["target.object"] = node.properties["node.name"] .. ".spatialize_filter_chain.capture"
+           ["target.object"] = node.properties["node.name"] .. ".spatialize_filter_chain.capture",
+           ["node.dont-fallback"] = true,
+           ["node.linger"] = true
          }
          event:set_data ("extra-si-properties", extra_si_properties)
      end
