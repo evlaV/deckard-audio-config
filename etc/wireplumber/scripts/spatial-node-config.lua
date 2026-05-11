@@ -492,7 +492,7 @@ SimpleEventHook {
         EventInterest {
             Constraint { "event.type", "=", "metadata-changed" },
             Constraint { "metadata.name", "=", "sm-settings" },
-            Constraint { "event.subject.key", "=", "node.stream.spatial-audio-surround" }
+            Constraint { "event.subject.key", "c", "node.stream.spatial-audio", "node.stream.spatial-audio-surround" }
         }
     },
     execute = function (event)
@@ -507,7 +507,7 @@ SimpleEventHook {
             return
         end
 
-        if settings:find(0, "node.stream.spatial-audio-surround") == "true" then
+        if settings:find(0, "node.stream.spatial-audio") == "true" and settings:find(0, "node.stream.spatial-audio-surround") == "true" then
             if loopbackStereo then
                 loopbackStereo = nil
             end
