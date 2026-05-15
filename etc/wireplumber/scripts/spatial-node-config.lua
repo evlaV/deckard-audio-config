@@ -34,6 +34,11 @@ function shouldSpatialize(node)
       return false
     end
 
+    -- only spatialize if the channel count is supported
+    if not canSpatialize(getNumChannelsForNode(node)) then
+        return false
+    end
+
     -- for now, spatialize every output stream...
     if string.find(node.properties["media.class"], "Audio") and string.find(node.properties["media.class"], "Output") then
         -- ...except nodes that are part of the spatializer filter chains or device filter chains themselves
@@ -55,9 +60,23 @@ function shouldSpatialize(node)
     end
 end
 
+-- returns the number of channels requested by the given stream node
+function getNumChannelsForNode(node)
+    -- todo: what is the "correct" way to get at the channel format requested by the stream?
+    local numChannels = 2
+    for pod in node:iterate_params("EnumFormat") do
+        local pod_parsed = pod:parse()
+        if pod_parsed ~= nil then
+            numChannels = tonumber(pod_parsed.properties.channels)
+            break
+        end
+    end
+    return numChannels
+end
+
 -- returns true if we currently support spatializing audio streams with the given number of channels
 function canSpatialize(numChannels)
-    if numChannels == 1 or numChannels == 2 or numChannels == 4 or numChannels == 6 or numChannels == 8 then
+    if numChannels == 2 or numChannels == 4 or numChannels == 6 or numChannels == 8 then
         return true
     else
         return false
@@ -108,15 +127,7 @@ function getSpatializerArgs(node)
         -- log:warning(pid .. " : " .. tostring(node.properties["application.process.binary"]) .. " : " .. tostring(node.properties["application.name"]))
     end
 
-    -- todo: what is the "correct" way to get at the channel format requested by the stream?
-    numChannels = 2
-    for pod in node:iterate_params("EnumFormat") do
-        local pod_parsed = pod:parse()
-        if pod_parsed ~= nil then
-            numChannels = tonumber(pod_parsed.properties.channels)
-            break
-        end
-    end
+    numChannels = getNumChannelsForNode(node)
 
     local cutoff_frequency = 80
     local q = 0.707
