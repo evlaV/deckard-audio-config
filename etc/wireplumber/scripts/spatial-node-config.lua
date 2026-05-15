@@ -45,6 +45,8 @@ function shouldSpatialize(node)
             return false
         elseif string.find(node.properties["node.name"], "^alsa_loopback_") then
             return false
+        elseif string.find(node.properties["node.name"], "pw-audio-namespace", 1, true) then
+            return false
         else
             return true
         end
@@ -292,7 +294,7 @@ function addSpatializedItem(node, id)
     args = getSpatializerArgs(node)
     spatializer = LocalModule("libpipewire-module-filter-chain", args)
     if spatializer == nil then
-        log:warning("failed to create filter chain")
+        log:warning("failed to create spatializer filter chain for node: " .. node.properties["node.name"])
         return
     end
 
