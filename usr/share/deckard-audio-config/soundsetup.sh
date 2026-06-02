@@ -72,7 +72,6 @@ fi
 
 # Link filter chain files.
 rm -f /etc/pipewire/pipewire.conf.d/microphone-filter-chain*
-ln -s "/etc/pipewire/microphone-filter-chain/microphone-filter-chain-default.conf" /etc/pipewire/pipewire.conf.d/microphone-filter-chain.conf
 ln -s "/etc/pipewire/microphone-filter-chain/microphone-filter-chain-echo-cancel.conf" /etc/pipewire/pipewire.conf.d/microphone-filter-chain-echo-cancel.conf
 rm -f /etc/pipewire/pipewire.conf.d/filter-chain*
 # Choose speaker filter chain based on audio module vendor.
