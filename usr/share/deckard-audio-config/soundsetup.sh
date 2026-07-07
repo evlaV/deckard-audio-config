@@ -59,7 +59,7 @@ if [ $module_ret_code -eq 0 ]; then
       dsm_bin="dsm_param_OW_2018b.bin"
       Digital=127
   elif [[ "${module_vendor,,}" == "ggec" ]]; then
-    dsm_bin="dsm_param_ggec_preEV1poc_ThOff.bin"
+    dsm_bin="dsm_param_GG.bin"
     Digital=112
   else
     echo "[audiosetup] unsupported module vendor"
