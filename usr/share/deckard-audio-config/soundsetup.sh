@@ -84,6 +84,15 @@ fi
 ln -s "/etc/pipewire/filter-chains/filter-chain-aec-cpu.conf" /etc/pipewire/pipewire.conf.d/filter-chain-aec.conf
 ln -s "/etc/pipewire/microphone-filter-chain/microphone-filter-chain-echo-cancel-cpu.conf" /etc/pipewire/pipewire.conf.d/microphone-filter-chain-echo-cancel.conf
 
+# Link LADSPA binaries
+STEAMVR_DIR=$(realpath `steamvr path`)
+echo "[audiosetup] SteamVR path: $STEAMVR_DIR"
+mkdir -pv /run/ladspa
+rm -fv /run/ladspa/*.so
+ln -sfv $STEAMVR_DIR/bin/linuxarm64/audiofilter.so /run/ladspa/audiofilter.so
+ln -sfv $STEAMVR_DIR/bin/linuxarm64/libphonon.so /run/ladspa/libphonon.so
+ln -sfv $STEAMVR_DIR/bin/linuxarm64/vraudiocompositor.so /run/ladspa/vraudiocompositor.so
+
 echo "[audiosetup] loading dsm param file $dsm_bin"
 
 # Load DSM param bin file to amps.
