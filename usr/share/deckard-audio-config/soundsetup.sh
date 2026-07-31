@@ -81,8 +81,13 @@ else
   echo "[audiosetup] linking Denver filter chain"
   ln -s "/etc/pipewire/filter-chains/filter-chain-denver.conf" /etc/pipewire/pipewire.conf.d/filter-chain.conf
 fi
-ln -s "/etc/pipewire/filter-chains/filter-chain-aec-cpu.conf" /etc/pipewire/pipewire.conf.d/filter-chain-aec.conf
-ln -s "/etc/pipewire/microphone-filter-chain/microphone-filter-chain-echo-cancel-cpu.conf" /etc/pipewire/pipewire.conf.d/microphone-filter-chain-echo-cancel.conf
+if [ -e "/home/steamos/.local/state/disable_dsp_aec" ]; then
+  ln -s "/etc/pipewire/filter-chains/filter-chain-aec-cpu.conf" /etc/pipewire/pipewire.conf.d/filter-chain-aec.conf
+  ln -s "/etc/pipewire/microphone-filter-chain/microphone-filter-chain-echo-cancel-cpu.conf" /etc/pipewire/pipewire.conf.d/microphone-filter-chain-echo-cancel.conf
+else
+  ln -s "/etc/pipewire/filter-chains/filter-chain-aec-dsp.conf" /etc/pipewire/pipewire.conf.d/filter-chain-aec.conf
+  ln -s "/etc/pipewire/microphone-filter-chain/microphone-filter-chain-echo-cancel-dsp.conf" /etc/pipewire/pipewire.conf.d/microphone-filter-chain-echo-cancel.conf
+fi
 
 # Link LADSPA binaries
 STEAMVR_DIR=$(realpath `steamvr path`)
