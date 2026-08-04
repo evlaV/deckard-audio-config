@@ -8,15 +8,14 @@
 @prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix units: <http://lv2plug.in/ns/extensions/units#> .
 @prefix urid:  <http://lv2plug.in/ns/ext/urid#> .
-<https://faustlv2.bitbucket.io/valve_deck_speakers>
+<https://faustlv2.bitbucket.io/valve_deckard_mic>
        a lv2:Plugin ;
-       doap:name "Valve DSP" ;
-       lv2:binary <valve_deck_speakers.so> ;
+       doap:name "valve_deckard_mic_tuning" ;
+       lv2:binary <valve_deckard_mic.so> ;
        lv2:requiredFeature urid:map ;
        lv2:optionalFeature epp:supportsStrictBounds ;
        lv2:optionalFeature lv2:hardRTCapable ;
-       rdfs:comment "Clipper for Deckard." ;
-       doap:revision "0.1" ;
+       rdfs:comment "microphone tuning for the deckard system" ;
     lv2:port [
 	a lv2:InputPort ;
 	a lv2:AudioPort ;
