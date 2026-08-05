@@ -10,12 +10,12 @@
 @prefix urid:  <http://lv2plug.in/ns/ext/urid#> .
 <https://faustlv2.bitbucket.io/valve_denver_speakers>
        a lv2:Plugin ;
-       doap:name "Valve Denver Speakers" ;
+       doap:name "valve_denver_speaker_tuning" ;
        lv2:binary <valve_denver_speakers.so> ;
        lv2:requiredFeature urid:map ;
        lv2:optionalFeature epp:supportsStrictBounds ;
        lv2:optionalFeature lv2:hardRTCapable ;
-       rdfs:comment "Speaker tuning for the Denver product." ;
+       rdfs:comment "speaker tuning for the denver product" ;
     lv2:port [
 	a lv2:InputPort ;
 	a lv2:AudioPort ;

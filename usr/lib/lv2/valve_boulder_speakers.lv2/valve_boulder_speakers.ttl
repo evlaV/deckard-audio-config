@@ -8,13 +8,14 @@
 @prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix units: <http://lv2plug.in/ns/extensions/units#> .
 @prefix urid:  <http://lv2plug.in/ns/ext/urid#> .
-<https://faustlv2.bitbucket.io/valve_deckard_microphone_neg3p6>
+<https://faustlv2.bitbucket.io/valve_boulder_speakers>
        a lv2:Plugin ;
-       doap:name "deckard_mic_tuning" ;
-       lv2:binary <valve_deckard_microphone_neg3p6.so> ;
+       doap:name "valve_boulder_speaker_tuning" ;
+       lv2:binary <valve_boulder_speakers.so> ;
        lv2:requiredFeature urid:map ;
        lv2:optionalFeature epp:supportsStrictBounds ;
        lv2:optionalFeature lv2:hardRTCapable ;
+       rdfs:comment "speaker tuning for the boulder product" ;
     lv2:port [
 	a lv2:InputPort ;
 	a lv2:AudioPort ;
