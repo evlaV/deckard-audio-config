@@ -7,7 +7,7 @@ process = _,_ : valve.denver_speaker_tuning(IN_GAIN_DB, IN_HP_FREQ, IN_COMP_STRE
 _,_ 
 with
 {
-    IN_GAIN_DB = 7.5;  // 0.0 13.5f;
+    IN_GAIN_DB = 13.5;  // 0.0 13.5f;
     IN_COMP_STRENGTH = 0.45; //0.0 0.45; 
     IN_COMP_THRESHOLD = -30.0;
     IN_COMP_ATTACK = 0.001;
