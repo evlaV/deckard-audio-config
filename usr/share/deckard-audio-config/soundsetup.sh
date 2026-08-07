@@ -54,10 +54,10 @@ if [ $module_ret_code -eq 0 ]; then
   echo "[audiosetup] audio_module_vendor is $module_vendor"
   if [[ "$module_vendor" == "Forgrand" ]]; then
       dsm_bin="dsm_param_FG_2018b.bin"
-      Digital=139
+      Digital=127
   elif [[ "$module_vendor" == "Olewolff" ]]; then
       dsm_bin="dsm_param_OW_2018b.bin"
-      Digital=140
+      Digital=127
   elif [[ "${module_vendor,,}" == "ggec" ]]; then
     dsm_bin="dsm_param_GG.bin"
     Digital=112
