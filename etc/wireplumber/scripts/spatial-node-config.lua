@@ -269,8 +269,8 @@ function getSpatializerArgs(node)
     end
 
     local args = {
-        ["node.description"] = node.properties["node.name"] .. ".spatialize_filter_chain",
-        ["media.name"] = node.properties["node.name"] .. ".spatialize_filter_chain",
+        ["node.description"] = node.properties["node.name"] .. "." .. node.properties["object.serial"] .. ".spatialize_filter_chain",
+        ["media.name"] = node.properties["node.name"] .. "." .. node.properties["object.serial"] .. ".spatialize_filter_chain",
         ["filter.graph"] = Json.Object{
             ["nodes"] = nodes,
             ["links"] = links,
@@ -278,14 +278,14 @@ function getSpatializerArgs(node)
             ["outputs"] = Json.Array{ "spatialize:Out_FL", "spatialize:Out_FR" }
         },
         ["capture.props"] = Json.Object{
-            ["node.name"] = node.properties["node.name"] .. ".spatialize_filter_chain.capture",
+            ["node.name"] = node.properties["node.name"] .. "." .. node.properties["object.serial"] .. ".spatialize_filter_chain.capture",
             ["media.class"] = "Audio/Sink",
             ["audio.channels"] = numChannels,
             ["audio.position"] = captureAudioPosition,
             ["spatialize.node"] = node.id
         },
         ["playback.props"] = Json.Object{
-            ["node.name"] = node.properties["node.name"] .. ".spatialize_filter_chain.playback",
+            ["node.name"] = node.properties["node.name"] .. "." .. node.properties["object.serial"] .. ".spatialize_filter_chain.playback",
             ["node.passive"] = true,
             ["audio.channels"] = 2,
             ["audio.position"] = Json.Array{"FL", "FR"}
@@ -297,7 +297,7 @@ end
 
 
 -- helper function for adding a session item for a spatialized output stream node
-function addSpatializedItem(node, id)
+function addSpatializedItem(node)
     local spatializer
     local args
 
@@ -310,7 +310,13 @@ function addSpatializedItem(node, id)
     end
 
     -- keep track of the filter chain, so we can destroy it when the stream node is destroyed
-    spatializers[node.id] = spatializer
+    local object_serial = tonumber(node.properties["object.serial"])
+    spatializers[object_serial] = spatializer
+    node:connect("pw-proxy-destroyed", function()
+        if spatializers[object_serial] then
+            spatializers[object_serial] = nil
+        end
+    end)
 end
 
 SimpleEventHook {
@@ -333,44 +339,18 @@ SimpleEventHook {
   },
    execute = function (event)
      local node = event:get_subject ()
-     local id = node.id
 
      -- if we should spatialize this node, create the filter chain
      if isDefaultSinkBuiltIn(event) and shouldSpatialize(node) then
-         addSpatializedItem(node, id)
+         addSpatializedItem(node)
          local extra_si_properties = {
-           ["target.object"] = node.properties["node.name"] .. ".spatialize_filter_chain.capture",
+           ["target.object"] = node.properties["node.name"] .. "." .. node.properties["object.serial"] .. ".spatialize_filter_chain.capture",
            ["node.dont-fallback"] = true,
            ["node.linger"] = true
          }
          event:set_data ("extra-si-properties", extra_si_properties)
      end
    end
-}:register ()
-
-SimpleEventHook {
-  name = "spatial-node/destroy-item",
-  interests = {
-    EventInterest {
-      Constraint { "event.type", "=", "node-removed" },
-      Constraint { "media.class", "#", "Stream/*", type = "pw-global" },
-    },
-    EventInterest {
-      Constraint { "event.type", "=", "node-removed" },
-      Constraint { "media.class", "#", "Video/*", type = "pw-global" },
-    },
-    EventInterest {
-      Constraint { "event.type", "=", "node-removed" },
-      Constraint { "media.class", "#", "Audio/*", type = "pw-global" },
-      Constraint { "wireplumber.is-virtual", "-", type = "pw" },
-    },
-  },
-  execute = function (event)
-    local node = event:get_subject ()
-    if spatializers[node.id] then
-        spatializers[node.id] = nil
-    end
-  end
 }:register ()
 
 function getLoopbackStereoArgs(device_id, cpd)
