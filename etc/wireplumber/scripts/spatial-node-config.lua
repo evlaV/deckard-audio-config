@@ -7,6 +7,19 @@ spatializers = {}
 loopbackStereo = nil
 loopback71 = nil
 
+SpeakerFormat = {
+    UNSUPPORTED     = 0,
+    MONO            = 1,
+    STEREO          = 2,
+    QUAD            = 3,
+    SURROUND_5_1    = 4,
+    SURROUND_7_1    = 5,
+    SURROUND_5_1_2  = 6,
+    SURROUND_5_1_4  = 7,
+    SURROUND_7_1_2  = 8,
+    SURROUND_7_1_4  = 9,
+}
+
 -- returns true if the current default sink is the built-in speakers
 function isDefaultSinkBuiltIn(event)
     local source = event:get_source()
@@ -34,11 +47,6 @@ function shouldSpatialize(node)
       return false
     end
 
-    -- only spatialize if the channel count is supported
-    if not canSpatialize(getNumChannelsForNode(node)) then
-        return false
-    end
-
     -- for now, spatialize every output stream...
     if string.find(node.properties["media.class"], "Audio") and string.find(node.properties["media.class"], "Output") then
         -- ...except nodes that are part of the spatializer filter chains or device filter chains themselves
@@ -52,62 +60,163 @@ function shouldSpatialize(node)
             return false
         elseif string.find(node.properties["node.name"], "pw-audio-namespace", 1, true) then
             return false
-        else
-            return true
         end
     else
         return false
     end
+
+    -- only spatialize if the channel format is supported
+    if not canSpatialize(getFormatForNode(node)) then
+        return false
+    end
+
+    return true
 end
 
--- returns the number of channels requested by the given stream node
-function getNumChannelsForNode(node)
-    -- todo: what is the "correct" way to get at the channel format requested by the stream?
-    local numChannels = 2
+-- checks whether the set of available positions contains all the positions specified in the test array
+function channelPositionsMatch(availablePositions, testPositions)
+    -- if we have different numbers of channels, these are different formats
+    if #availablePositions ~= #testPositions then
+        return false
+    end
+
+    -- sort both the arrays, so we're independent of channel ordering differences
+    table.sort(availablePositions)
+    table.sort(testPositions)
+
+    -- every position must match
+    for i = 1, #availablePositions do
+        if testPositions[i] ~= availablePositions[i] then
+            return false
+        end
+    end
+
+    return true
+end
+
+-- returns the format requested by the given stream node
+function getFormatForNode(node)
     for pod in node:iterate_params("EnumFormat") do
         local pod_parsed = pod:parse()
+
         if pod_parsed ~= nil then
-            numChannels = tonumber(pod_parsed.properties.channels)
-            break
+            local position = pod_parsed.properties.position
+
+            if position ~= nil then
+                local numChannels = #position
+    
+                -- make a copy of the positions array
+                local positionsCopy = {}
+                for i = 1, numChannels do
+                    positionsCopy[i] = position[i]
+                end
+
+                -- for each supported format, check if the dictionary contains all those positions, _and no others_
+                if channelPositionsMatch(positionsCopy, { "MONO" }) then
+                    return SpeakerFormat.MONO
+                elseif channelPositionsMatch(positionsCopy, { "FL", "FR" }) then
+                    return SpeakerFormat.STEREO
+                elseif channelPositionsMatch(positionsCopy, { "FL", "FR", "RL", "RR" }) then
+                    return SpeakerFormat.QUAD
+                elseif channelPositionsMatch(positionsCopy, { "FL", "FR", "FC", "LFE", "RL", "RR" }) then
+                    return SpeakerFormat.SURROUND_5_1
+                elseif channelPositionsMatch(positionsCopy, { "FL", "FR", "FC", "LFE", "RL", "RR", "SL", "SR" }) then
+                    return SpeakerFormat.SURROUND_7_1
+                elseif channelPositionsMatch(positionsCopy, { "FL", "FR", "FC", "LFE", "RL", "RR", "TFL", "TFR" }) then
+                    return SpeakerFormat.SURROUND_5_1_2
+                elseif channelPositionsMatch(positionsCopy, { "FL", "FR", "FC", "LFE", "RL", "RR", "TFL", "TFR", "TRL", "TRR" }) then
+                    return SpeakerFormat.SURROUND_5_1_4
+                elseif channelPositionsMatch(positionsCopy, { "FL", "FR", "FC", "LFE", "RL", "RR", "SL", "SR", "TFL", "TFR" }) then
+                    return SpeakerFormat.SURROUND_7_1_2
+                elseif channelPositionsMatch(positionsCopy, { "FL", "FR", "FC", "LFE", "RL", "RR", "SL", "SR", "TFL", "TFR", "TRL", "TRR" }) then
+                    return SpeakerFormat.SURROUND_7_1_4
+                end
+            end
         end
     end
-    return numChannels
+
+    return SpeakerFormat.UNSUPPORTED
 end
 
--- returns true if we currently support spatializing audio streams with the given number of channels
-function canSpatialize(numChannels)
-    if numChannels == 2 or numChannels == 4 or numChannels == 6 or numChannels == 8 then
-        return true
+-- returns the number of channels in the given format
+function getNumChannelsForFormat(format)
+    if format == SpeakerFormat.MONO then
+        return 1
+    elseif format == SpeakerFormat.STEREO then
+        return 2
+    elseif format == SpeakerFormat.QUAD then
+        return 4
+    elseif format == SpeakerFormat.SURROUND_5_1 then
+        return 6
+    elseif format == SpeakerFormat.SURROUND_7_1 then
+        return 8
+    elseif format == SpeakerFormat.SURROUND_5_1_2 then
+        return 8
+    elseif format == SpeakerFormat.SURROUND_5_1_4 then
+        return 10
+    elseif format == SpeakerFormat.SURROUND_7_1_2 then
+        return 10
+    elseif format == SpeakerFormat.SURROUND_7_1_4 then
+        return 12
     else
-        return false
+        return 0
     end
 end
 
--- builds the string that contains the ladspa plugin name to use for a given channel count
-function getLADSPAPluginName(numChannels)
-    if numChannels == 2 then
+-- returns true if we currently support spatializing audio streams with the given format
+function canSpatialize(format)
+    if format == SpeakerFormat.UNSUPPORTED then
+        return false
+    else
+        return true
+    end
+end
+
+-- builds the string that contains the ladspa plugin name to use for a given format
+function getLADSPAPluginName(format)
+    if format == SpeakerFormat.MONO then
+        return "spatialize_mono"
+    elseif format == SpeakerFormat.STEREO then
         return "spatialize_stereo"
-    elseif numChannels == 4 then
+    elseif format == SpeakerFormat.QUAD then
         return "spatialize_quad"
-    elseif numChannels == 6 then
+    elseif format == SpeakerFormat.SURROUND_5_1 then
         return "spatialize_51"
-    elseif numChannels == 8 then
+    elseif format == SpeakerFormat.SURROUND_7_1 then
         return "spatialize_71"
+    elseif format == SpeakerFormat.SURROUND_5_1_2 then
+        return "spatialize_512"
+    elseif format == SpeakerFormat.SURROUND_5_1_4 then
+        return "spatialize_514"
+    elseif format == SpeakerFormat.SURROUND_7_1_2 then
+        return "spatialize_712"
+    elseif format == SpeakerFormat.SURROUND_7_1_4 then
+        return "spatialize_714"
     else
         return ""
     end
 end
 
--- builds the string that describes the input channel map for a given channel count
-function getChannelPositions(numChannels)
-    if numChannels == 2 then
+-- builds the string that describes the input channel map for a given format
+function getChannelPositions(format)
+    if format == SpeakerFormat.MONO then
+        return "[ MONO ]"
+    elseif format == SpeakerFormat.STEREO then
         return "[ FL FR ]"
-    elseif numChannels == 4 then
+    elseif format == SpeakerFormat.QUAD then
         return "[ FL FR RL RR ]"
-    elseif numChannels == 6 then
+    elseif format == SpeakerFormat.SURROUND_5_1 then
         return "[ FL FR FC LFE RL RR ]"
-    elseif numChannels == 8 then
+    elseif format == SpeakerFormat.SURROUND_7_1 then
         return "[ FL FR FC LFE RL RR SL SR ]"
+    elseif format == SpeakerFormat.SURROUND_5_1_2 then
+        return "[ FL FR FC LFE RL RR TFL TFR ]"
+    elseif format == SpeakerFormat.SURROUND_5_1_4 then
+        return "[ FL FR FC LFE RL RR TFL TFR TRL TRR ]"
+    elseif format == SpeakerFormat.SURROUND_7_1_2 then
+        return "[ FL FR FC LFE RL RR SL SR TFL TFR ]"
+    elseif format == SpeakerFormat.SURROUND_7_1_4 then
+        return "[ FL FR FC LFE RL RR SL SR TFL TFR TRL TRR ]"
     else
         return ""
     end
@@ -118,7 +227,7 @@ end
 function getSpatializerArgs(node)
     local args
     local pid
-    local numChannels
+    local format
 
     -- figure out the pid from the node's properties
     pid = 0
@@ -127,14 +236,14 @@ function getSpatializerArgs(node)
         -- log:warning(pid .. " : " .. tostring(node.properties["application.process.binary"]) .. " : " .. tostring(node.properties["application.name"]))
     end
 
-    numChannels = getNumChannelsForNode(node)
+    format = getFormatForNode(node)
 
     local cutoff_frequency = 80
     local q = 0.707
 
     local nodes = Json.Array{}
 
-    if numChannels == 6 or numChannels == 8 then
+    if format == SpeakerFormat.SURROUND_5_1 or format == SpeakerFormat.SURROUND_7_1 or format == SpeakerFormat.SURROUND_5_1_2 or format == SpeakerFormat.SURROUND_5_1_4 or format == SpeakerFormat.SURROUND_7_1_2 or format == SpeakerFormat.SURROUND_7_1_4 then
         nodes = nodes:merge(Json.Array{
             Json.Object{ type = "builtin", name = "copy_fl", label = "copy" },
             Json.Object{ type = "builtin", name = "copy_fr", label = "copy" },
@@ -143,7 +252,7 @@ function getSpatializerArgs(node)
             Json.Object{ type = "builtin", name = "copy_rl", label = "copy" },
             Json.Object{ type = "builtin", name = "copy_rr", label = "copy" }
         })
-        if numChannels == 8 then
+        if format == SpeakerFormat.SURROUND_7_1 or format == SpeakerFormat.SURROUND_7_1_2 or format == SpeakerFormat.SURROUND_7_1_4 then
             nodes = nodes:merge(Json.Array{
                 Json.Object{ type = "builtin", name = "copy_sl", label = "copy" },
                 Json.Object{ type = "builtin", name = "copy_sr", label = "copy" }
@@ -183,7 +292,7 @@ function getSpatializerArgs(node)
         type = "ladspa",
         name = "spatialize",
         plugin = "/usr/lib/ladspa/vraudiocompositor.so",
-        label = getLADSPAPluginName(numChannels),
+        label = getLADSPAPluginName(format),
         control = Json.Object{
             ["PID"] = pid
         }
@@ -191,7 +300,7 @@ function getSpatializerArgs(node)
 
     local links = Json.Array{}
 
-    if numChannels == 6 or numChannels == 8 then
+    if format == SpeakerFormat.SURROUND_5_1 or format == SpeakerFormat.SURROUND_7_1 or format == SpeakerFormat.SURROUND_5_1_2 or format == SpeakerFormat.SURROUND_5_1_4 or format == SpeakerFormat.SURROUND_7_1_2 or format == SpeakerFormat.SURROUND_7_1_4 then
         links = links:merge(Json.Array{
             Json.Object{ output = "copy_fl:Out", input = "lowpass:In 1" },
             Json.Object{ output = "copy_fr:Out", input = "lowpass:In 2" },
@@ -227,7 +336,7 @@ function getSpatializerArgs(node)
             Json.Object{ output = "highpass:Out 5", input = "spatialize:In_RL" },
             Json.Object{ output = "highpass:Out 6", input = "spatialize:In_RR" }
         })
-        if numChannels == 8 then
+        if format == SpeakerFormat.SURROUND_7_1 or format == SpeakerFormat.SURROUND_7_1_2 or format == SpeakerFormat.SURROUND_7_1_4 then
             links = links:merge(Json.Array{
                 Json.Object{ output = "copy_sl:Out", input = "lowpass:In 7" },
                 Json.Object{ output = "copy_sr:Out", input = "lowpass:In 8" },
@@ -245,28 +354,48 @@ function getSpatializerArgs(node)
     end
 
     local inputs = {}
-
-    if numChannels == 6 or numChannels == 8 then
-        inputs = Json.Array{ "copy_fl:In", "copy_fr:In", "copy_fc:In", "copy_lfe:In", "copy_rl:In", "copy_rr:In" }
-        if numChannels == 8 then
-            inputs = inputs:merge(Json.Array{"copy_sl:In", "copy_sr:In"})
-        end
-    else
+    if format == SpeakerFormat.MONO then
+        inputs = Json.Array{ "spatialize:In_MONO" }
+    elseif format == SpeakerFormat.STEREO then
         inputs = Json.Array{ "spatialize:In_FL", "spatialize:In_FR" }
-        if numChannels == 4 then
-            inputs = inputs:merge(Json.Array{"spatialize:In_RL", "spatialize:In_RR"})
-        end
+    elseif format == SpeakerFormat.QUAD then
+        inputs = Json.Array{ "spatialize:In_FL", "spatialize:In_FR", "spatialize:In_RL", "spatialize:In_RR" }
+    elseif format == SpeakerFormat.SURROUND_5_1 then
+        inputs = Json.Array{ "copy_fl:In", "copy_fr:In", "copy_fc:In", "copy_lfe:In", "copy_rl:In", "copy_rr:In" }
+    elseif format == SpeakerFormat.SURROUND_7_1 then
+        inputs = Json.Array{ "copy_fl:In", "copy_fr:In", "copy_fc:In", "copy_lfe:In", "copy_rl:In", "copy_rr:In", "copy_sl:In", "copy_sr:In" }
+    elseif format == SpeakerFormat.SURROUND_5_1_2 then
+        inputs = Json.Array{ "copy_fl:In", "copy_fr:In", "copy_fc:In", "copy_lfe:In", "copy_rl:In", "copy_rr:In", "spatialize:In_TFL", "spatialize:In_TFR" }
+    elseif format == SpeakerFormat.SURROUND_5_1_4 then
+        inputs = Json.Array{ "copy_fl:In", "copy_fr:In", "copy_fc:In", "copy_lfe:In", "copy_rl:In", "copy_rr:In", "spatialize:In_TFL", "spatialize:In_TFR", "spatialize:In_TRL", "spatialize:In_TRR" }
+    elseif format == SpeakerFormat.SURROUND_7_1_2 then
+        inputs = Json.Array{ "copy_fl:In", "copy_fr:In", "copy_fc:In", "copy_lfe:In", "copy_rl:In", "copy_rr:In", "copy_sl:In", "copy_sr:In", "spatialize:In_TFL", "spatialize:In_TFR" }
+    elseif format == SpeakerFormat.SURROUND_7_1_4 then
+        inputs = Json.Array{ "copy_fl:In", "copy_fr:In", "copy_fc:In", "copy_lfe:In", "copy_rl:In", "copy_rr:In", "copy_sl:In", "copy_sr:In", "spatialize:In_TFL", "spatialize:In_TFR", "spatialize:In_TRL", "spatialize:In_TRR" }
     end
 
-    local captureAudioPosition = Json.Array{"FL", "FR"}
-    if numChannels == 6 or numChannels == 8 then
-        captureAudioPosition = captureAudioPosition:merge(Json.Array{"FC", "LFE", "RL", "RR"})
-        if numChannels == 8 then
-            captureAudioPosition = captureAudioPosition:merge(Json.Array{"SL", "SR"})
-        end
-    elseif numChannels == 4 then
-        captureAudioPosition = captureAudioPosition:merge(Json.Array{"RL", "RR"})
+    local captureAudioPosition = {}
+    if format == SpeakerFormat.MONO then
+        captureAudioPosition = Json.Array{ "MONO" }
+    elseif format == SpeakerFormat.STEREO then
+        captureAudioPosition = Json.Array{ "FL", "FR" }
+    elseif format == SpeakerFormat.QUAD then
+        captureAudioPosition = Json.Array{ "FL", "FR", "RL", "RR" }
+    elseif format == SpeakerFormat.SURROUND_5_1 then
+        captureAudioPosition = Json.Array{ "FL", "FR", "FC", "LFE", "RL", "RR" }
+    elseif format == SpeakerFormat.SURROUND_7_1 then
+        captureAudioPosition = Json.Array{ "FL", "FR", "FC", "LFE", "RL", "RR", "SL", "SR" }
+    elseif format == SpeakerFormat.SURROUND_5_1_2 then
+        captureAudioPosition = Json.Array{ "FL", "FR", "FC", "LFE", "RL", "RR", "TFL", "TFR" }
+    elseif format == SpeakerFormat.SURROUND_5_1_4 then
+        captureAudioPosition = Json.Array{ "FL", "FR", "FC", "LFE", "RL", "RR", "TFL", "TFR", "TRL", "TRR" }
+    elseif format == SpeakerFormat.SURROUND_7_1_2 then
+        captureAudioPosition = Json.Array{ "FL", "FR", "FC", "LFE", "RL", "RR", "SL", "SR", "TFL", "TFR" }
+    elseif format == SpeakerFormat.SURROUND_7_1_4 then
+        captureAudioPosition = Json.Array{ "FL", "FR", "FC", "LFE", "RL", "RR", "SL", "SR", "TFL", "TFR", "TRL", "TRR" }
     end
+
+    local numChannels = getNumChannelsForFormat(format)
 
     local args = {
         ["node.description"] = node.properties["node.name"] .. "." .. node.properties["object.serial"] .. ".spatialize_filter_chain",
