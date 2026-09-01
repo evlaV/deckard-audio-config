@@ -70,6 +70,12 @@ else
   error_exit
 fi
 
+# Reset internal mic volume if it got manually modified in the past
+WIREPLUMBER_DEFAULT_ROUTES=/home/steamos/.local/state/wireplumber/default-routes
+if [ -f "$WIREPLUMBER_DEFAULT_ROUTES" ]; then
+  sed -i '/^alsa_card\.platform-sound:input:/d' "$WIREPLUMBER_DEFAULT_ROUTES"
+fi
+
 # Link filter chain files.
 rm -f /etc/pipewire/pipewire.conf.d/microphone-filter-chain*
 rm -f /etc/pipewire/pipewire.conf.d/filter-chain*
