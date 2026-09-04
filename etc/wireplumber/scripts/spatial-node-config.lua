@@ -43,7 +43,7 @@ end
 -- returns true if we should spatialize the node
 function shouldSpatialize(node)
     -- only spatialize if the relevant wireplumber setting is enabled
-    if not Settings.get_boolean("node.stream.spatial-audio") then
+    if not Settings.get_boolean("node.stream.enable-spatial-audio") then
       return false
     end
 
@@ -614,7 +614,7 @@ SimpleEventHook {
         EventInterest {
             Constraint { "event.type", "=", "metadata-changed" },
             Constraint { "metadata.name", "=", "sm-settings" },
-            Constraint { "event.subject.key", "c", "node.stream.spatial-audio", "node.stream.spatial-audio-surround" }
+            Constraint { "event.subject.key", "c", "node.stream.enable-spatial-audio", "node.stream.enable-spatial-audio-surround" }
         }
     },
     execute = function (event)
@@ -629,7 +629,7 @@ SimpleEventHook {
             return
         end
 
-        if settings:find(0, "node.stream.spatial-audio") == "true" and settings:find(0, "node.stream.spatial-audio-surround") == "true" then
+        if settings:find(0, "node.stream.enable-spatial-audio") == "true" and settings:find(0, "node.stream.enable-spatial-audio-surround") == "true" then
             if loopbackStereo then
                 loopbackStereo = nil
             end
