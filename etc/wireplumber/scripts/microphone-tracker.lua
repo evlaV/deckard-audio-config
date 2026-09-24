@@ -10,7 +10,7 @@ local BUILTIN_SOURCE_NAME = "alsa_input.platform-sound.HiFi__Mic__source"
 local BUILTIN_SINK_NAME   = "alsa_output.platform-sound.HiFi__Speaker__sink"
 
 local BUILTIN_SOURCE_LOOPACK_NAME = "alsa_loopback_device." .. BUILTIN_SOURCE_NAME
-local BUILTIN_SINK_LOOPACK_NAME   = "alsa_loopback_device.stereo." .. BUILTIN_SINK_NAME -- nocheckin: should handle the 7.1 loopback as well
+local BUILTIN_SINK_LOOPACK_NAME   = "alsa_loopback_device.stereo." .. BUILTIN_SINK_NAME -- todo: should handle the 7.1 loopback as well
 
 function updateMicSmartFilters(event)
   local is_any_stream_active = false
@@ -47,10 +47,10 @@ function updateMicSmartFilters(event)
 
       if is_any_stream_active and should_enable then
         metadata:set(node.properties["object.id"], "filter.smart.disabled", "Spa:String:JSON", "false")
-        log:warning("ENABLING MIC FILTER: " .. node.properties["node.name"])
+        -- log:warning("ENABLING MIC FILTER: " .. node.properties["node.name"])
       else
         metadata:set(node.properties["object.id"], "filter.smart.disabled", "Spa:String:JSON")
-        log:warning("DISABLING MIC FILTER: " .. node.properties["node.name"])
+        -- log:warning("DISABLING MIC FILTER: " .. node.properties["node.name"])
       end
     end
   end
@@ -63,17 +63,17 @@ function selectMicSmartFilters(event)
   local defaults = metadata_om:lookup{ Constraint{ "metadata.name", "=", "default" } }
   local default_source_name = Json.Raw(defaults:find(0, "default.audio.source")):parse().name
   local default_sink_name = Json.Raw(defaults:find(0, "default.audio.sink")):parse().name
-  log:warning("DEFAULTS UPDATED: " .. default_source_name .. " / " .. default_sink_name)
+  -- log:warning("DEFAULTS UPDATED: " .. default_source_name .. " / " .. default_sink_name)
 
   -- if either the source or the sink is built-in, but without the loopback, stop
   if default_source_name == BUILTIN_SOURCE_NAME or default_sink_name == BUILTIN_SINK_NAME then
-    log:warning("LOOPBACK MISSING, NOT DOING ANYTHING YET")
+    -- log:warning("LOOPBACK MISSING, NOT DOING ANYTHING YET")
     return
   end
 
   -- if the defaults didn't actually change, stop
   if default_source_name == mic_tracker_state.default_source_name and default_sink_name == mic_tracker_state.default_sink_name then
-    log:warning("DEFAULTS UNCHANGED, NO WORK NEEDED")
+    -- log:warning("DEFAULTS UNCHANGED, NO WORK NEEDED")
     return
   end
 
@@ -91,10 +91,10 @@ function selectMicSmartFilters(event)
     if fallback_aec_source ~= nil then
       if default_source_name == BUILTIN_SOURCE_LOOPACK_NAME then
         filters:set(fallback_aec_source.properties["object.id"], "filter.smart.target", "Spa:String:JSON")
-        log:warning("RESET FALLBACK AEC SOURCE TARGET")
+        -- log:warning("RESET FALLBACK AEC SOURCE TARGET")
       else
         filters:set(fallback_aec_source.properties["object.id"], "filter.smart.target", "Spa:String:JSON", "{ node.name = \"" .. default_source_name .. "\" }")
-        log:warning("SET FALLBACK AEC SOURCE TARGET: " .. default_source_name)
+        -- log:warning("SET FALLBACK AEC SOURCE TARGET: " .. default_source_name)
       end
     end
 
@@ -102,10 +102,10 @@ function selectMicSmartFilters(event)
     if fallback_aec_sink ~= nil then
       if default_sink_name == BUILTIN_SINK_LOOPACK_NAME then
         filters:set(fallback_aec_sink.properties["object.id"], "filter.smart.target", "Spa:String:JSON")
-        log:warning("RESET FALLBACK AEC SINK TARGET")
+        -- log:warning("RESET FALLBACK AEC SINK TARGET")
       else
         filters:set(fallback_aec_sink.properties["object.id"], "filter.smart.target", "Spa:String:JSON", "{ node.name = \"" .. default_sink_name .. "\" }")
-        log:warning("SET FALLBACK AEC SINK TARGET: " .. default_sink_name)
+        -- log:warning("SET FALLBACK AEC SINK TARGET: " .. default_sink_name)
       end
     end
   end
