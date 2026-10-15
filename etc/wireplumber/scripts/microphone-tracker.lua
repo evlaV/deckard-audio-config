@@ -1,5 +1,20 @@
 log = Log.open_topic("m-node")
 
+-- returns the parsed table if value is a JSON object, nil otherwise
+local function parseJsonObject (value)
+  if value == nil then
+    return nil
+  end
+  local json = Json.Raw (value)
+  if not json:is_object () then
+    return nil
+  end
+  return json:parse ()
+end
+
+local state = State ("steamos-filters")
+local state_table = state:load ()
+
 local mic_tracker_state = {
    stream_count = 0,
    default_source_name = "",
@@ -12,6 +27,43 @@ local BUILTIN_SINK_NAME   = "alsa_output.platform-sound.HiFi__Speaker__sink"
 local BUILTIN_SOURCE_LOOPACK_NAME = "alsa_loopback_device." .. BUILTIN_SOURCE_NAME
 local BUILTIN_SINK_LOOPACK_NAME   = "alsa_loopback_device.stereo." .. BUILTIN_SINK_NAME -- todo: should handle the 7.1 loopback as well
 
+local function getEnabledMicFilters (mic_name)
+  local enabled_filters = { aec = true, ns = true }
+
+  if mic_name ~= BUILTIN_SOURCE_LOOPACK_NAME then
+    local setting = Settings.get_object ("steamos.external-mic-filters")
+    if setting then
+      enabled_filters = setting
+    end
+  end
+
+  local stored = parseJsonObject (state_table [mic_name])
+  if stored then
+    for k, v in pairs (stored) do enabled_filters [k] = v end
+  end
+
+  return enabled_filters
+end
+
+local function saveEnabledMicFilters (mic_name, value)
+  local new_value = nil
+  local enabled_filters = parseJsonObject (value)
+
+  if enabled_filters then
+    new_value = Json.Object {
+      aec = enabled_filters.aec,
+      ns = enabled_filters.ns,
+    }:to_string ()
+  end
+
+  if state_table [mic_name] == new_value then
+    return
+  end
+
+  state_table [mic_name] = new_value
+  state:save_after_timeout (state_table)
+end
+
 function updateMicSmartFilters(event)
   local is_any_stream_active = false
   if mic_tracker_state.stream_count > 0 then
@@ -23,25 +75,28 @@ function updateMicSmartFilters(event)
   local metadata_om = source:call ("get-object-manager", "metadata")
   local metadata =
         metadata_om:lookup { Constraint { "metadata.name", "=", "filters" } }
+  local mic_name = mic_tracker_state.default_source_name
+  local spk_name = mic_tracker_state.default_sink_name
+  local enabled_filters = getEnabledMicFilters (mic_name)
 
   for node in node_om:iterate() do
     if node.properties["steamos.mic_filter"] == "true" then
       local should_enable = false
       if node.properties["node.name"] == "eq_source" then
-        if mic_tracker_state.default_source_name == BUILTIN_SOURCE_LOOPACK_NAME then
+        if mic_name == BUILTIN_SOURCE_LOOPACK_NAME then
           should_enable = true
         end
       elseif node.properties["node.name"] == "echo_cancel_source" or node.properties["node.name"] == "echo_cancel_sink" then
-        if mic_tracker_state.default_source_name == BUILTIN_SOURCE_LOOPACK_NAME and mic_tracker_state.default_sink_name == BUILTIN_SINK_LOOPACK_NAME then
-          should_enable = true
+        if mic_name == BUILTIN_SOURCE_LOOPACK_NAME and spk_name == BUILTIN_SINK_LOOPACK_NAME then
+          should_enable = enabled_filters.aec
         end
       elseif node.properties["node.name"] == "echo_cancel_fallback_source" or node.properties["node.name"] == "echo_cancel_fallback_sink" then
-        if mic_tracker_state.default_source_name ~= BUILTIN_SOURCE_LOOPACK_NAME or mic_tracker_state.default_sink_name ~= BUILTIN_SINK_LOOPACK_NAME then
-          should_enable = true
+        if mic_name ~= BUILTIN_SOURCE_LOOPACK_NAME or spk_name ~= BUILTIN_SINK_LOOPACK_NAME then
+          should_enable = enabled_filters.aec
         end
       elseif node.properties["node.name"] == "ns_source" then
-        if mic_tracker_state.default_source_name == BUILTIN_SOURCE_LOOPACK_NAME and mic_tracker_state.default_sink_name == BUILTIN_SINK_LOOPACK_NAME then
-          should_enable = true
+        if mic_name == BUILTIN_SOURCE_LOOPACK_NAME and spk_name == BUILTIN_SINK_LOOPACK_NAME then
+          should_enable = enabled_filters.ns
         end
       end
 
@@ -191,3 +246,35 @@ SimpleEventHook {
     selectMicSmartFilters(event)
   end
 }:register()
+
+SimpleEventHook {
+  name = "mic-filters/settings-changed",
+  interests = {
+    EventInterest {
+      Constraint { "event.type", "=", "metadata-changed" },
+      Constraint { "metadata.name", "=", "steamos-filters" },
+    }
+  },
+  execute = function (event)
+    local props = event:get_properties ()
+    local mic_name = props ["event.subject.key"]
+    local value = props ["event.subject.value"]
+
+    saveEnabledMicFilters (mic_name, value)
+
+    if mic_name == mic_tracker_state.default_source_name then
+      updateMicSmartFilters (event)
+    end
+  end
+}:register ()
+
+-- Populate metadata on load
+local metadata_om = ObjectManager {
+  Interest { type = "metadata", Constraint { "metadata.name", "=", "steamos-filters" } }
+}
+metadata_om:connect ("object-added", function (om, metadata)
+  for mic_name, value in pairs (state_table) do
+    metadata:set (0, mic_name, "Spa:String:JSON", value)
+  end
+end)
+metadata_om:activate ()
