@@ -30,10 +30,12 @@ local BUILTIN_SINK_LOOPACK_NAME   = "alsa_loopback_device.stereo." .. BUILTIN_SI
 local function getEnabledMicFilters (mic_name)
   local enabled_filters = { aec = true, ns = true }
 
-  if mic_name ~= BUILTIN_SOURCE_LOOPACK_NAME then
-    local setting = Settings.get_object ("steamos.external-mic-filters")
+  local setting = Settings.get_object ("steamos.mic-filters")
+  if mic_name == BUILTIN_SOURCE_LOOPACK_NAME then
     if setting then
-      enabled_filters = setting
+      enabled_filters = setting.builtin
+    else
+      enabled_filters = setting.external
     end
   end
 
