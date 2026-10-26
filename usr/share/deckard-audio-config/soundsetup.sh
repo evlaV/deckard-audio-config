@@ -46,25 +46,10 @@ fi
 EEPROM_CONSOLE=/usr/lib/deckard-eeprom/eeprom_console
 
 # Read the audio module vendor from EEPROM.
-dsm_bin=""
-Digital=0
 module_vendor=$( $EEPROM_CONSOLE get audio_module_vendor 2>/dev/null )
 module_ret_code=$?
 if [ $module_ret_code -eq 0 ]; then
   echo "[audiosetup] audio_module_vendor is $module_vendor"
-  if [[ "$module_vendor" == "Forgrand" ]]; then
-      dsm_bin="dsm_param_FG_2018b.bin"
-      Digital=127
-  elif [[ "$module_vendor" == "Olewolff" ]]; then
-      dsm_bin="dsm_param_OW_2018b.bin"
-      Digital=127
-  elif [[ "${module_vendor,,}" == "ggec" ]]; then
-    dsm_bin="dsm_param_GG.bin"
-    Digital=112
-  else
-    echo "[audiosetup] unsupported module vendor"
-    error_exit
-  fi
 else
   echo "[audiosetup] module vendor not set in eeprom"
   error_exit
@@ -103,6 +88,16 @@ rm -fv /run/ladspa/*.so
 ln -sfv $STEAMVR_DIR/bin/linuxarm64/audiofilter.so /run/ladspa/audiofilter.so
 ln -sfv $STEAMVR_DIR/bin/linuxarm64/libphonon.so /run/ladspa/libphonon.so
 ln -sfv $STEAMVR_DIR/bin/linuxarm64/vraudiocompositor.so /run/ladspa/vraudiocompositor.so
+
+if [[ "${module_vendor,,}" != "ggec" ]]; then
+  # Nothing more to do for FG/OW
+  exit 0
+fi
+
+# GGEC-only from here on out
+
+dsm_bin="dsm_param_GG.bin"
+Digital=112
 
 echo "[audiosetup] loading dsm param file $dsm_bin"
 
