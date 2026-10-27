@@ -116,7 +116,7 @@ end
 -- if the given source node is a loopback (e.g. ALSA or bluez loopback), return
 -- the name of the device node that its capture stream targets, otherwise
 -- return the given name
-function getLoopbackTargetName(node_om, source_name)
+function getLoopbackTargetNameForSource(node_om, source_name)
   local source = node_om:lookup{ Constraint{ "node.name", "=", source_name } }
   if source == nil then
     return source_name
@@ -135,6 +135,33 @@ function getLoopbackTargetName(node_om, source_name)
   }
   if stream == nil then
     return source_name
+  end
+
+  return stream.properties["target.object"]
+end
+
+-- if the given sink node is a loopback (e.g. ALSA or bluez loopback), return
+-- the name of the device node that its playback stream targets, otherwise
+-- return the given name
+function getLoopbackTargetNameForSink(node_om, sink_name)
+  local sink = node_om:lookup{ Constraint{ "node.name", "=", sink_name } }
+  if sink == nil then
+    return sink_name
+  end
+
+  local link_group = sink.properties["node.link-group"]
+  if link_group == nil then
+    return sink_name
+  end
+
+  -- node.link-group and target.object are not global properties
+  local stream = node_om:lookup{
+    Constraint{ "node.link-group", "=", link_group, type = "pw" },
+    Constraint{ "media.class", "#", "Stream/Output/Audio*" },
+    Constraint{ "target.object", "+", type = "pw" },
+  }
+  if stream == nil then
+    return sink_name
   end
 
   return stream.properties["target.object"]
@@ -179,7 +206,7 @@ function selectMicSmartFilters(event)
       else
         -- target the device behind the loopback, so that the filter is linked
         -- between the device and the loopback stream, hidden from applications
-        local target_name = getLoopbackTargetName(node_om, default_source_name)
+        local target_name = getLoopbackTargetNameForSource(node_om, default_source_name)
         filters:set(fallback_aec_source.properties["object.id"], "filter.smart.target", "Spa:String:JSON", "{ node.name = \"" .. target_name .. "\" }")
         -- log:warning("SET FALLBACK AEC SOURCE TARGET: " .. target_name)
       end
@@ -191,7 +218,10 @@ function selectMicSmartFilters(event)
         filters:set(fallback_aec_sink.properties["object.id"], "filter.smart.target", "Spa:String:JSON")
         -- log:warning("RESET FALLBACK AEC SINK TARGET")
       else
-        filters:set(fallback_aec_sink.properties["object.id"], "filter.smart.target", "Spa:String:JSON", "{ node.name = \"" .. default_sink_name .. "\" }")
+        -- target the device behind the loopback, so that the filter is linked
+        -- between the device and the loopback stream, hidden from applications
+        local target_name = getLoopbackTargetNameForSink(node_om, default_sink_name)
+        filters:set(fallback_aec_sink.properties["object.id"], "filter.smart.target", "Spa:String:JSON", "{ node.name = \"" .. target_name .. "\" }")
         -- log:warning("SET FALLBACK AEC SINK TARGET: " .. default_sink_name)
       end
     end
