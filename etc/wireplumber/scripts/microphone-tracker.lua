@@ -93,7 +93,9 @@ function updateMicSmartFilters(event)
           should_enable = enabled_filters.aec
         end
       elseif node.properties["node.name"] == "echo_cancel_fallback_source" or node.properties["node.name"] == "echo_cancel_fallback_sink" then
-        if mic_name ~= BUILTIN_SOURCE_LOOPACK_NAME or spk_name ~= BUILTIN_SINK_LOOPACK_NAME then
+        if string.match(spk_name, "^bluez_output") then
+          should_enable = false -- temporary
+        elseif mic_name ~= BUILTIN_SOURCE_LOOPACK_NAME or spk_name ~= BUILTIN_SINK_LOOPACK_NAME then
           should_enable = enabled_filters.aec
         end
       elseif node.properties["node.name"] == "ns_source" then
