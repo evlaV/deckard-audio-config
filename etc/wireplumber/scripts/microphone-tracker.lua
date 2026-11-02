@@ -66,6 +66,16 @@ local function saveEnabledMicFilters (mic_name, value)
   state:save_after_timeout (state_table)
 end
 
+-- AEC on a BT sink needs its loopback to keep the filter hidden
+local function isBluetoothSinkWithoutLoopback (node_om, spk_name)
+  if not string.match (spk_name, "^bluez_output") then
+    return false
+  end
+
+  local spk = node_om:lookup { Constraint { "node.name", "=", spk_name } }
+  return spk == nil or spk.properties["bluez5.loopback"] ~= "true"
+end
+
 function updateMicSmartFilters(event)
   local is_any_stream_active = false
   if mic_tracker_state.stream_count > 0 then
@@ -93,8 +103,8 @@ function updateMicSmartFilters(event)
           should_enable = enabled_filters.aec
         end
       elseif node.properties["node.name"] == "echo_cancel_fallback_source" or node.properties["node.name"] == "echo_cancel_fallback_sink" then
-        if string.match(spk_name, "^bluez_output") then
-          should_enable = false -- temporary
+        if isBluetoothSinkWithoutLoopback (node_om, spk_name) then
+          should_enable = false
         elseif mic_name ~= BUILTIN_SOURCE_LOOPACK_NAME or spk_name ~= BUILTIN_SINK_LOOPACK_NAME then
           should_enable = enabled_filters.aec
         end
@@ -169,33 +179,14 @@ function getLoopbackTargetNameForSink(node_om, sink_name)
   return stream.properties["target.object"]
 end
 
-function selectMicSmartFilters(event)
-  -- get the default source/sink pair
+-- if using either external mic or external speakers, update the targeting metadata
+-- for the fallback aec
+function updateFallbackAecTargets(event)
   local event_source = event:get_source()
   local metadata_om = event_source:call("get-object-manager", "metadata")
-  local defaults = metadata_om:lookup{ Constraint{ "metadata.name", "=", "default" } }
-  local default_source_name = Json.Raw(defaults:find(0, "default.audio.source")):parse().name
-  local default_sink_name = Json.Raw(defaults:find(0, "default.audio.sink")):parse().name
-  -- log:warning("DEFAULTS UPDATED: " .. default_source_name .. " / " .. default_sink_name)
+  local default_source_name = mic_tracker_state.default_source_name
+  local default_sink_name = mic_tracker_state.default_sink_name
 
-  -- if either the source or the sink is built-in, but without the loopback, stop
-  if default_source_name == BUILTIN_SOURCE_NAME or default_sink_name == BUILTIN_SINK_NAME then
-    -- log:warning("LOOPBACK MISSING, NOT DOING ANYTHING YET")
-    return
-  end
-
-  -- if the defaults didn't actually change, stop
-  if default_source_name == mic_tracker_state.default_source_name and default_sink_name == mic_tracker_state.default_sink_name then
-    -- log:warning("DEFAULTS UNCHANGED, NO WORK NEEDED")
-    return
-  end
-
-  -- update state
-  mic_tracker_state.default_source_name = default_source_name
-  mic_tracker_state.default_sink_name = default_sink_name
-
-  -- if using either external mic or external speakers, update the targeting metadata
-  -- for the fallback aec
   if default_source_name ~= BUILTIN_SOURCE_LOOPACK_NAME or default_sink_name ~= BUILTIN_SINK_LOOPACK_NAME then
     local node_om = event_source:call("get-object-manager", "node")
     local filters = metadata_om:lookup{ Constraint { "metadata.name", "=", "filters" } }
@@ -228,6 +219,34 @@ function selectMicSmartFilters(event)
       end
     end
   end
+end
+
+function selectMicSmartFilters(event)
+  -- get the default source/sink pair
+  local event_source = event:get_source()
+  local metadata_om = event_source:call("get-object-manager", "metadata")
+  local defaults = metadata_om:lookup{ Constraint{ "metadata.name", "=", "default" } }
+  local default_source_name = Json.Raw(defaults:find(0, "default.audio.source")):parse().name
+  local default_sink_name = Json.Raw(defaults:find(0, "default.audio.sink")):parse().name
+  -- log:warning("DEFAULTS UPDATED: " .. default_source_name .. " / " .. default_sink_name)
+
+  -- if either the source or the sink is built-in, but without the loopback, stop
+  if default_source_name == BUILTIN_SOURCE_NAME or default_sink_name == BUILTIN_SINK_NAME then
+    -- log:warning("LOOPBACK MISSING, NOT DOING ANYTHING YET")
+    return
+  end
+
+  -- if the defaults didn't actually change, stop
+  if default_source_name == mic_tracker_state.default_source_name and default_sink_name == mic_tracker_state.default_sink_name then
+    -- log:warning("DEFAULTS UNCHANGED, NO WORK NEEDED")
+    return
+  end
+
+  -- update state
+  mic_tracker_state.default_source_name = default_source_name
+  mic_tracker_state.default_sink_name = default_sink_name
+
+  updateFallbackAecTargets(event)
 
   -- if any recording streams are active, update which filters are enabled
   if mic_tracker_state.stream_count > 0 then
@@ -278,6 +297,48 @@ SimpleEventHook {
   },
   execute = function(event)
     selectMicSmartFilters(event)
+  end
+}:register()
+
+-- The defaults can change before the loopback stream is added, and the targets
+-- are resolved through that stream
+SimpleEventHook {
+  name = "mic-filters/loopback-stream-added",
+  interests = {
+    EventInterest {
+      Constraint { "event.type", "=", "node-added" },
+      Constraint { "media.class", "#", "Stream/*" },
+      Constraint { "alsa.loopback", "=", "true", type = "pw" },
+    },
+    EventInterest {
+      Constraint { "event.type", "=", "node-added" },
+      Constraint { "media.class", "#", "Stream/*" },
+      Constraint { "bluez5.loopback", "=", "true", type = "pw" },
+    },
+  },
+  execute = function(event)
+    if mic_tracker_state.default_source_name ~= "" then
+      updateFallbackAecTargets(event)
+    end
+  end
+}:register()
+
+-- The fallback AEC targets can disappear, e.g. on BT profile changes. Wait for
+-- them, as falling back to the default node can link the filter in a loop.
+SimpleEventHook {
+  name = "mic-filters/fallback-aec-dont-fallback",
+  before = "node/create-item",
+  interests = {
+    EventInterest {
+      Constraint { "event.type", "=", "node-added" },
+      Constraint { "node.name", "c", "echo_cancel_fallback_capture", "echo_cancel_fallback_playback" },
+    },
+  },
+  execute = function(event)
+    local extra_si_properties = event:get_data ("extra-si-properties") or {}
+    extra_si_properties ["node.dont-fallback"] = true
+    extra_si_properties ["node.linger"] = true
+    event:set_data ("extra-si-properties", extra_si_properties)
   end
 }:register()
 
