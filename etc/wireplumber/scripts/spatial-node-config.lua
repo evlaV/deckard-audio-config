@@ -58,6 +58,8 @@ function shouldSpatialize(node)
             return false
         elseif string.find(node.properties["node.name"], "^alsa_loopback_") then
             return false
+        elseif string.find(node.properties["node.name"], "^bluez_playback_internal") then
+            return false
         elseif string.find(node.properties["node.name"], "pw-audio-namespace", 1, true) then
             return false
         end
