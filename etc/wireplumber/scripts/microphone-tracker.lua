@@ -102,6 +102,14 @@ function updateMicSmartFilters(event)
         if mic_name == BUILTIN_SOURCE_LOOPACK_NAME and spk_name == BUILTIN_SINK_LOOPACK_NAME then
           should_enable = enabled_filters.ns
         end
+      elseif node.properties["node.name"] == "speaker-ref-sink" or node.properties["node.name"] == "speaker-ref-playback" then
+        if mic_name == BUILTIN_SOURCE_LOOPACK_NAME and spk_name == BUILTIN_SINK_LOOPACK_NAME then
+          should_enable = enabled_filters.aec
+        end
+      elseif node.properties["node.name"] == "dsp_source" or node.properties["node.name"] == "dsp_capture" then
+        if mic_name == BUILTIN_SOURCE_LOOPACK_NAME and spk_name == BUILTIN_SINK_LOOPACK_NAME then
+          should_enable = enabled_filters.aec
+        end
       end
 
       if is_any_stream_active and should_enable then
